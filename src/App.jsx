@@ -23,7 +23,7 @@ function AppContent() {
             </header>
 
             <main style={{ paddingTop: 8 }}>
-                {tab === 'dashboard' && <Dashboard />}
+                {tab === 'dashboard' && <Dashboard onTabChange={setTab} />}
                 {tab === 'spending' && <MonthlySpending />}
                 {tab === 'goals' && <GoalsList />}
                 {tab === 'income' && <IncomeEvents />}

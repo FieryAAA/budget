@@ -1,272 +1,292 @@
 import { createContext, useContext, useReducer, useEffect } from 'react';
 
-const STORAGE_KEY = 'finplan_data';
+const STORAGE_KEY = 'finplan_v3';
 
-// Generate unique ids
 let _idCounter = Date.now();
-export function uid() {
-  return (++_idCounter).toString(36);
+export function uid() { return (++_idCounter).toString(36); }
+
+// ─── Buffer target helper ─────────────────────────────────────────────────────
+export function calculateBufferTarget(state) {
+  const needs = state.monthly.budget || 200;
+  const recurring = state.goals
+    .filter(g => g.isRecurring)
+    .reduce((s, g) => s + (g.monthlyCost || 0), 0);
+  return (needs + recurring) * (state.safetyMonths || 3);
 }
 
-const defaultState = {
-  cash: 0,
-  monthly: {
-    budget: 200,
-    spent: 0,
-    expenses: [],
-    resetDate: new Date().toISOString().slice(0, 7),
-  },
-  goals: [
-    // Special: safety buffer
-    { id: 'buffer', name: 'Emergency Buffer', target: 600, saved: 0, priority: 'High', category: 'Essential', targetDate: '', isBuffer: true, isRecurring: false, monthlyCost: 0 },
-    // Recurring: gym
-    { id: 'gym', name: 'Gym Membership', target: 60, saved: 0, priority: 'High', category: 'Essential', targetDate: '', isBuffer: false, isRecurring: true, monthlyCost: 60 },
-    // Regular goals (from old wishlist)
-    { id: 'g1', name: 'Desk Chair', target: 600, saved: 0, priority: 'Medium', category: 'Comfort', targetDate: '', isBuffer: false, isRecurring: false, monthlyCost: 0 },
-    { id: 'g2', name: 'Phone Charger', target: 55, saved: 0, priority: 'High', category: 'Essential', targetDate: '', isBuffer: false, isRecurring: false, monthlyCost: 0 },
-    { id: 'g3', name: 'Jeans', target: 160, saved: 0, priority: 'Medium', category: 'Comfort', targetDate: '', isBuffer: false, isRecurring: false, monthlyCost: 0 },
-    { id: 'g4', name: 'Kindle Case', target: 30, saved: 0, priority: 'Low', category: 'Comfort', targetDate: '', isBuffer: false, isRecurring: false, monthlyCost: 0 },
-    { id: 'g5', name: 'Coursera Subscription', target: 60, saved: 0, priority: 'High', category: 'Education', targetDate: '', isBuffer: false, isRecurring: false, monthlyCost: 0 },
-    { id: 'g6', name: 'Pixel 9a', target: 1500, saved: 0, priority: 'Medium', category: 'Productivity', targetDate: '', isBuffer: false, isRecurring: false, monthlyCost: 0 },
-  ],
-  incomeEvents: [],
-  settings: { currency: 'TND' },
-};
-
-function loadState() {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) {
-      const parsed = JSON.parse(raw);
-      // Migration: if old format (has wishlist/funds), convert to new
-      if (parsed.wishlist || parsed.funds) {
-        return migrateOldState(parsed);
-      }
-      return parsed;
-    }
-  } catch { }
-  return defaultState;
+// ─── Monthly essentials total helper ─────────────────────────────────────────
+export function monthlyEssentials(state) {
+  const needs = state.monthly.budget || 200;
+  const recurring = state.goals
+    .filter(g => g.isRecurring)
+    .reduce((s, g) => s + (g.monthlyCost || 0), 0);
+  return needs + recurring;
 }
 
-function migrateOldState(old) {
-  const goals = [];
-  // Add buffer as goal
-  goals.push({
-    id: 'buffer', name: 'Emergency Buffer',
-    target: old.buffer?.target || 600,
-    saved: old.buffer?.current || 0,
-    priority: 'High', category: 'Essential', targetDate: '',
-    isBuffer: true, isRecurring: false, monthlyCost: 0,
-  });
-  // Migrate funds
-  if (old.funds) {
-    for (const f of old.funds) {
-      goals.push({
-        id: f.id, name: f.name, target: f.target, saved: f.saved || 0,
-        priority: 'Medium', category: 'Comfort', targetDate: '',
-        isBuffer: false, isRecurring: !!f.isGym, monthlyCost: f.monthlyCost || 0,
-      });
-    }
-  }
-  // Migrate wishlist (avoid duplicates by name)
-  const existingNames = new Set(goals.map(g => g.name.toLowerCase()));
-  if (old.wishlist) {
-    for (const w of old.wishlist) {
-      if (existingNames.has(w.name.toLowerCase())) continue;
-      goals.push({
-        id: w.id, name: w.name, target: w.price, saved: w.funded || 0,
-        priority: w.priority || 'Medium', category: w.category || 'Comfort',
-        targetDate: w.targetDate || '',
-        isBuffer: false, isRecurring: false, monthlyCost: 0,
-      });
-    }
-  }
-  return {
-    cash: old.cash || 0,
-    monthly: old.monthly || defaultState.monthly,
-    goals,
-    incomeEvents: old.incomeEvents || [],
-    settings: old.settings || defaultState.settings,
-  };
-}
-
-function saveState(state) {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-  } catch { }
-}
-
-// Helper: get monthly saving needed for a goal
+// ─── Saving plan helper ───────────────────────────────────────────────────────
 export function getMonthlySaving(goal) {
   if (!goal.targetDate || goal.saved >= goal.target) return null;
   const now = new Date();
   const target = new Date(goal.targetDate + '-01');
   const months = (target.getFullYear() - now.getFullYear()) * 12 + (target.getMonth() - now.getMonth());
   if (months <= 0) return { needed: goal.target - goal.saved, months: 0, status: 'overdue' };
-  const remaining = goal.target - goal.saved;
-  const perMonth = Math.ceil(remaining / months);
-  return { needed: perMonth, months, status: 'active' };
+  return { needed: Math.ceil((goal.target - goal.saved) / months), months, status: 'active' };
 }
 
-// Helper: check if goal is on track
-export function getGoalStatus(goal) {
-  if (goal.saved >= goal.target) return 'funded';
-  const plan = getMonthlySaving(goal);
-  if (!plan) return goal.saved > 0 ? 'partial' : 'unfunded';
-  if (plan.status === 'overdue') return 'behind';
-  return 'active';
+// ─── Auto-top-up calculation ──────────────────────────────────────────────────
+export function calcTopUpAmount(state) {
+  const essentials = monthlyEssentials(state);
+  const half = Math.round(essentials / 2);
+  const day = new Date().getDate();
+  const transfer = day <= 14 ? half : Math.max(0, essentials - state.monthlyTransferred);
+  const bufferSaved = state.goals.find(g => g.isBuffer)?.saved || 0;
+  return Math.min(transfer, bufferSaved);
 }
 
+// ─── Default state ────────────────────────────────────────────────────────────
+const defaultState = {
+  balance: 0,              // Current Balance (day-to-day spending money)
+  cash: 0,                 // Free unallocated cash (before allocation)
+  monthlyTransferred: 0,   // TND moved from buffer→balance this month
+  transferResetMonth: new Date().toISOString().slice(0, 7),
+  monthly: { budget: 200, spent: 0, expenses: [], resetDate: new Date().toISOString().slice(0, 7) },
+  safetyMonths: 3,
+  goals: [
+    { id: 'buffer', name: 'Safety Buffer', target: 0, saved: 0, priority: 'High', category: 'Essential', isBuffer: true, isRecurring: false },
+    { id: 'gym', name: 'Gym Membership', target: 70, saved: 0, priority: 'High', category: 'Essential', isBuffer: false, isRecurring: true, monthlyCost: 70 },
+    { id: 'g1', name: 'Pixel 9a', target: 1500, saved: 0, priority: 'High', category: 'Productivity', isRecurring: false },
+    { id: 'g2', name: 'Desk Chair', target: 600, saved: 0, priority: 'Medium', category: 'Comfort', isRecurring: false },
+    { id: 'g3', name: 'Jeans', target: 160, saved: 0, priority: 'Medium', category: 'Comfort', isRecurring: false },
+  ],
+  incomeEvents: [],
+  settings: { currency: 'TND' },
+};
+
+// ─── Load / persist ───────────────────────────────────────────────────────────
+function loadState() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw) {
+      const s = JSON.parse(raw);
+      // Sync buffer target on load
+      s.goals = s.goals.map(g => g.isBuffer ? { ...g, target: calculateBufferTarget(s) } : g);
+      // Ensure new fields exist (migration)
+      if (s.balance === undefined) s.balance = s.cash || 0;
+      if (s.monthlyTransferred === undefined) s.monthlyTransferred = 0;
+      if (s.transferResetMonth === undefined) s.transferResetMonth = new Date().toISOString().slice(0, 7);
+      return s;
+    }
+  } catch { }
+  return defaultState;
+}
+
+function saveState(s) {
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(s)); } catch { }
+}
+
+// ─── Reducer ──────────────────────────────────────────────────────────────────
 function reducer(state, action) {
-  switch (action.type) {
-    // ---- Cash ----
-    case 'SET_CASH':
-      return { ...state, cash: Math.max(0, action.value) };
+  let next;
 
-    // ---- Goals ----
-    case 'ADD_GOAL':
-      return {
-        ...state,
-        goals: [...state.goals, {
-          id: uid(), saved: 0, isBuffer: false, isRecurring: false, monthlyCost: 0,
-          ...action.goal,
-        }],
+  // Auto-reset monthlyTransferred on new month
+  const thisMonth = new Date().toISOString().slice(0, 7);
+  const base = state.transferResetMonth !== thisMonth
+    ? { ...state, monthlyTransferred: 0, transferResetMonth: thisMonth }
+    : state;
+
+  switch (action.type) {
+
+    // ── Balance & Cash ──────────────────────────────────────────────────────
+    case 'SET_BALANCE':
+      next = { ...base, balance: Math.max(0, action.value) };
+      break;
+
+    case 'SET_CASH':
+      next = { ...base, cash: Math.max(0, action.value) };
+      break;
+
+    // ── Buffer Auto-Top-Up ──────────────────────────────────────────────────
+    case 'TOP_UP_BALANCE': {
+      const essentials = monthlyEssentials(base);
+      const half = Math.round(essentials / 2);
+      const day = new Date().getDate();
+      const requested = day <= 14 ? half : Math.max(0, essentials - base.monthlyTransferred);
+      const bufferGoal = base.goals.find(g => g.isBuffer);
+      const available = bufferGoal?.saved || 0;
+      const transfer = Math.min(requested, available);
+      if (transfer <= 0) return { ...base, _toast: 'noFunds' };
+      next = {
+        ...base,
+        balance: base.balance + transfer,
+        monthlyTransferred: base.monthlyTransferred + transfer,
+        goals: base.goals.map(g => g.isBuffer ? { ...g, saved: g.saved - transfer } : g),
+        _toast: { type: 'topup', amount: transfer, bufferDepleted: transfer < requested },
       };
+      break;
+    }
+
+    // ── Goals ───────────────────────────────────────────────────────────────
+    case 'ADD_GOAL':
+      next = { ...base, goals: [...base.goals, { id: uid(), saved: 0, isBuffer: false, isRecurring: false, monthlyCost: 0, ...action.goal }] };
+      break;
 
     case 'EDIT_GOAL':
-      return {
-        ...state,
-        goals: state.goals.map(g => g.id === action.id ? { ...g, ...action.updates } : g),
-      };
+      next = { ...base, goals: base.goals.map(g => g.id === action.id ? { ...g, ...action.updates } : g) };
+      break;
 
     case 'DELETE_GOAL':
-      return {
-        ...state,
-        // Return saved amount back to cash
-        cash: state.cash + (state.goals.find(g => g.id === action.id)?.saved || 0),
-        goals: state.goals.filter(g => g.id !== action.id),
+      next = {
+        ...base,
+        cash: base.cash + (base.goals.find(g => g.id === action.id)?.saved || 0),
+        goals: base.goals.filter(g => g.id !== action.id),
       };
+      break;
 
     case 'FUND_GOAL': {
-      const goal = state.goals.find(g => g.id === action.id);
-      if (!goal) return state;
-      const maxFund = goal.target - goal.saved;
-      const amt = Math.min(action.amount, state.cash, maxFund);
-      if (amt <= 0) return state;
-      return {
-        ...state,
-        cash: state.cash - amt,
-        goals: state.goals.map(g =>
-          g.id === action.id ? { ...g, saved: g.saved + amt } : g
-        ),
+      const goal = base.goals.find(g => g.id === action.id);
+      if (!goal) return base;
+      const amt = Math.min(action.amount, base.cash, goal.target - goal.saved);
+      next = {
+        ...base,
+        cash: base.cash - amt,
+        goals: base.goals.map(g => g.id === action.id ? { ...g, saved: g.saved + amt } : g),
       };
+      break;
     }
 
     case 'WITHDRAW_GOAL': {
-      const goal = state.goals.find(g => g.id === action.id);
-      if (!goal) return state;
+      const goal = base.goals.find(g => g.id === action.id);
+      if (!goal) return base;
       const amt = Math.min(action.amount, goal.saved);
-      if (amt <= 0) return state;
-      return {
-        ...state,
-        cash: state.cash + amt,
-        goals: state.goals.map(g =>
-          g.id === action.id ? { ...g, saved: g.saved - amt } : g
-        ),
+      next = {
+        ...base,
+        cash: base.cash + amt,
+        goals: base.goals.map(g => g.id === action.id ? { ...g, saved: g.saved - amt } : g),
       };
+      break;
     }
 
     case 'MOVE_FUNDS': {
-      const from = state.goals.find(g => g.id === action.fromId);
-      const to = state.goals.find(g => g.id === action.toId);
-      if (!from || !to) return state;
-      const maxFrom = from.saved;
-      const maxTo = to.target - to.saved;
-      const amt = Math.min(action.amount, maxFrom, maxTo);
-      if (amt <= 0) return state;
-      return {
-        ...state,
-        goals: state.goals.map(g => {
+      const from = base.goals.find(g => g.id === action.fromId);
+      const to = base.goals.find(g => g.id === action.toId);
+      if (!from || !to) return base;
+      const amt = Math.min(action.amount, from.saved, to.target - to.saved);
+      next = {
+        ...base,
+        goals: base.goals.map(g => {
           if (g.id === action.fromId) return { ...g, saved: g.saved - amt };
           if (g.id === action.toId) return { ...g, saved: g.saved + amt };
           return g;
         }),
       };
+      break;
     }
 
-    // ---- Monthly ----
+    case 'PURCHASE_ITEM':
+      next = { ...base, goals: base.goals.filter(g => g.id !== action.id) };
+      break;
+
+    // ── Income ──────────────────────────────────────────────────────────────
+    case 'ADD_INCOME': {
+      const inc = { id: uid(), source: action.source, amount: action.amount, date: new Date().toISOString() };
+      next = {
+        ...base,
+        cash: base.cash + action.amount,
+        incomeEvents: [inc, ...base.incomeEvents],
+      };
+      break;
+    }
+
+    case 'ALLOCATE_INCOME': {
+      // Greedy 3-step allocation
+      let pool = action.amount;
+      const goals = base.goals.map(g => ({ ...g }));
+
+      // 1. Buffer first
+      const buf = goals.find(g => g.isBuffer);
+      if (buf) { const t = Math.min(buf.target - buf.saved, pool); buf.saved += t; pool -= t; }
+
+      // 2. Recurring goals
+      goals.filter(g => g.isRecurring).forEach(g => {
+        const t = Math.min(g.target - g.saved, pool); g.saved += t; pool -= t;
+      });
+
+      // 3. Priority wishlist (greedy)
+      const order = { High: 0, Medium: 1, Low: 2 };
+      goals.filter(g => !g.isBuffer && !g.isRecurring && g.saved < g.target)
+        .sort((a, b) => order[a.priority] - order[b.priority])
+        .forEach(g => { const t = Math.min(g.target - g.saved, pool); g.saved += t; pool -= t; });
+
+      const inc = { id: uid(), source: action.source, amount: action.amount, date: new Date().toISOString() };
+      next = {
+        ...base,
+        cash: base.cash + pool, // leftover stays as free cash
+        goals,
+        incomeEvents: [inc, ...base.incomeEvents],
+      };
+      break;
+    }
+
+    // ── Monthly spending ─────────────────────────────────────────────────────
     case 'SET_MONTHLY_BUDGET':
-      return { ...state, monthly: { ...state.monthly, budget: action.value } };
+      next = { ...base, monthly: { ...base.monthly, budget: action.value } };
+      break;
+
+    case 'SET_SAFETY_MONTHS':
+      next = { ...base, safetyMonths: action.value };
+      break;
 
     case 'ADD_EXPENSE': {
       const exp = { id: uid(), name: action.name, amount: action.amount, date: new Date().toISOString() };
-      return {
-        ...state,
-        cash: state.cash - action.amount,
-        monthly: {
-          ...state.monthly,
-          spent: state.monthly.spent + action.amount,
-          expenses: [...state.monthly.expenses, exp],
-        },
+      next = {
+        ...base,
+        balance: Math.max(0, base.balance - action.amount),
+        monthly: { ...base.monthly, spent: base.monthly.spent + action.amount, expenses: [...base.monthly.expenses, exp] },
       };
+      break;
     }
 
     case 'DELETE_EXPENSE': {
-      const exp = state.monthly.expenses.find(e => e.id === action.id);
-      if (!exp) return state;
-      return {
-        ...state,
-        cash: state.cash + exp.amount,
-        monthly: {
-          ...state.monthly,
-          spent: state.monthly.spent - exp.amount,
-          expenses: state.monthly.expenses.filter(e => e.id !== action.id),
-        },
+      const exp = base.monthly.expenses.find(e => e.id === action.id);
+      if (!exp) return base;
+      next = {
+        ...base,
+        balance: base.balance + exp.amount,
+        monthly: { ...base.monthly, spent: base.monthly.spent - exp.amount, expenses: base.monthly.expenses.filter(e => e.id !== action.id) },
       };
+      break;
     }
 
     case 'RESET_MONTHLY':
-      return {
-        ...state,
-        monthly: { ...state.monthly, spent: 0, expenses: [], resetDate: new Date().toISOString().slice(0, 7) },
+      next = {
+        ...base,
+        goals: base.goals.map(g => g.isRecurring ? { ...g, saved: 0 } : g),
+        monthly: { ...base.monthly, spent: 0, expenses: [], resetDate: thisMonth },
+        monthlyTransferred: 0,
+        transferResetMonth: thisMonth,
       };
-
-    // ---- Income ----
-    case 'ADD_INCOME': {
-      const inc = { id: uid(), source: action.source, amount: action.amount, date: new Date().toISOString() };
-      return {
-        ...state,
-        cash: state.cash + action.amount,
-        incomeEvents: [inc, ...state.incomeEvents],
-      };
-    }
-
-    // ---- Reset ----
-    case 'RESET_ALL':
-      localStorage.removeItem(STORAGE_KEY);
-      return defaultState;
+      break;
 
     default:
-      return state;
+      return base;
   }
+
+  // Always re-sync buffer target
+  if (next) {
+    const bufTarget = calculateBufferTarget(next);
+    next.goals = next.goals.map(g => g.isBuffer ? { ...g, target: bufTarget } : g);
+  }
+
+  return next || base;
 }
 
+// ─── Context ──────────────────────────────────────────────────────────────────
 const StoreContext = createContext();
 
 export function StoreProvider({ children }) {
   const [state, dispatch] = useReducer(reducer, null, loadState);
-
-  useEffect(() => {
-    saveState(state);
-  }, [state]);
-
-  return (
-    <StoreContext.Provider value={{ state, dispatch }}>
-      {children}
-    </StoreContext.Provider>
-  );
+  useEffect(() => { saveState(state); }, [state]);
+  return <StoreContext.Provider value={{ state, dispatch }}>{children}</StoreContext.Provider>;
 }
 
-export function useStore() {
-  return useContext(StoreContext);
-}
+export function useStore() { return useContext(StoreContext); }

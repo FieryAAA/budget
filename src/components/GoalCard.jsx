@@ -9,7 +9,7 @@ export default function GoalCard({ goal, compact = false }) {
 
     const [fundAmt, setFundAmt] = useState('');
     const [withdrawAmt, setWithdrawAmt] = useState('');
-    const [mode, setMode] = useState(null); // 'fund' | 'withdraw' | null
+    const [mode, setMode] = useState(null);
 
     const remaining = Math.max(0, goal.target - goal.saved);
     const pct = goal.target > 0 ? Math.round((goal.saved / goal.target) * 100) : 0;
@@ -38,163 +38,107 @@ export default function GoalCard({ goal, compact = false }) {
         setMode(null);
     }
 
-    // Compact mode for dashboard
+    function handlePurchase() {
+        if (window.confirm(`Mark "${goal.name}" as purchased? This will remove the goal.`)) {
+            dispatch({ type: 'PURCHASE_ITEM', id: goal.id });
+        }
+    }
+
     if (compact) {
         return (
-            <div className="card" style={isFunded ? { borderColor: 'rgba(34,197,94,0.3)' } : {}}>
+            <div className="card" style={isFunded ? { borderColor: 'rgba(34,197,94,0.4)', background: 'rgba(34,197,94,0.05)' } : {}}>
                 <div className="flex-between">
                     <div>
                         <div className="list-item-name" style={{ fontSize: '0.9rem' }}>
                             {goal.isBuffer ? '🛡️' : goal.isRecurring ? '🔄' : '🎯'} {goal.name}
                         </div>
-                        <div className="list-item-meta" style={{ marginTop: 3 }}>
-                            <span className={`badge ${goal.priority.toLowerCase()}`}>{goal.priority}</span>
-                            {goal.isRecurring && <span className="badge essential">Recurring</span>}
-                        </div>
                     </div>
                     <div style={{ textAlign: 'right' }}>
-                        <div style={{ fontSize: '1.1rem', fontWeight: 800, color: pctColor }}>{pct}%</div>
-                        <div className="text-muted" style={{ fontSize: '0.72rem' }}>
-                            {goal.saved.toLocaleString()} / {goal.target.toLocaleString()}
-                        </div>
+                        {isFunded ? (
+                            <div className="badge success">READY</div>
+                        ) : (
+                            <div style={{ fontSize: '1rem', fontWeight: 800, color: pctColor }}>{pct}%</div>
+                        )}
                     </div>
                 </div>
                 <ProgressBar value={goal.saved} max={goal.target} color={barColor} />
+                {isFunded && !goal.isBuffer && !goal.isRecurring && (
+                    <button className="btn btn-sm btn-primary mt-8" onClick={handlePurchase} style={{ width: '100%' }}>Buy Now 🛒</button>
+                )}
             </div>
         );
     }
 
     return (
-        <div className="card" style={isFunded ? { borderColor: 'rgba(34,197,94,0.3)' } : {}}>
-            {/* Header */}
+        <div className="card" style={isFunded ? { borderColor: 'var(--green)', boxShadow: '0 0 15px rgba(34,197,94,0.1)' } : {}}>
             <div className="flex-between">
                 <div>
                     <div style={{ fontSize: '1rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 6 }}>
                         {goal.isBuffer ? '🛡️' : goal.isRecurring ? '🔄' : '🎯'}
                         {goal.name}
-                        {isFunded && <span style={{ color: 'var(--green)', fontSize: '0.85rem' }}>✅</span>}
                     </div>
                     <div className="list-item-meta" style={{ marginTop: 4 }}>
                         <span className={`badge ${goal.priority.toLowerCase()}`}>{goal.priority}</span>
                         <span className={`badge ${goal.category.toLowerCase()}`}>{goal.category}</span>
                         {goal.isRecurring && <span className="badge essential">Monthly: {goal.monthlyCost} {cur}</span>}
-                        {goal.targetDate && <span>📅 {goal.targetDate}</span>}
                     </div>
                 </div>
-                <div style={{ textAlign: 'right', minWidth: 80 }}>
-                    <div style={{ fontSize: '1.15rem', fontWeight: 800, color: pctColor }}>{pct}%</div>
-                    {!goal.isBuffer && !goal.isRecurring && (
-                        <button
-                            className="btn btn-sm btn-danger mt-8"
-                            onClick={() => dispatch({ type: 'DELETE_GOAL', id: goal.id })}
-                            style={{ fontSize: '0.65rem' }}
-                        >
-                            Remove
-                        </button>
+                <div style={{ textAlign: 'right' }}>
+                    {isFunded ? (
+                        <div className="badge success" style={{ padding: '6px 12px', fontSize: '0.8rem' }}>Ready to Buy</div>
+                    ) : (
+                        <div style={{ fontSize: '1.2rem', fontWeight: 800, color: pctColor }}>{pct}%</div>
                     )}
                 </div>
             </div>
 
-            {/* Stats */}
-            <div className="mini-grid mt-12" style={{ gridTemplateColumns: '1fr 1fr 1fr' }}>
-                <div className="mini-card">
-                    <div className="label">Target</div>
-                    <div className="value" style={{ fontSize: '1rem' }}>{goal.target.toLocaleString()}</div>
-                </div>
-                <div className="mini-card">
-                    <div className="label">Saved</div>
-                    <div className="value" style={{ fontSize: '1rem', color: 'var(--green)' }}>{goal.saved.toLocaleString()}</div>
-                </div>
-                <div className="mini-card">
-                    <div className="label">Left</div>
-                    <div className="value" style={{ fontSize: '1rem', color: remaining > 0 ? 'var(--yellow)' : 'var(--green)' }}>{remaining.toLocaleString()}</div>
-                </div>
-            </div>
-
-            {/* Progress */}
             <ProgressBar
                 value={goal.saved}
                 max={goal.target}
-                label={`${pct}% funded`}
-                rightLabel={isFunded ? '✅ Ready!' : `${remaining.toLocaleString()} ${cur} left`}
+                label={`${goal.saved.toLocaleString()} / ${goal.target.toLocaleString()}`}
                 color={barColor}
             />
 
-            {/* Saving Plan */}
+            {isFunded && !goal.isBuffer && !goal.isRecurring && (
+                <div className="alert alert-success mt-12">
+                    <span>🎉</span>
+                    <div style={{ flex: 1 }}>
+                        <strong>Goal reached!</strong> Use your allocated funds to make the purchase.
+                        <button className="btn btn-sm btn-primary mt-8" onClick={handlePurchase} style={{ width: '100%' }}>Complete Purchase 🛒</button>
+                    </div>
+                </div>
+            )}
+
             {plan && !isFunded && (
-                <div className={`alert ${plan.status === 'overdue' ? 'alert-danger' : 'alert-info'} mt-8`} style={{ marginBottom: 0 }}>
+                <div className={`alert ${plan.status === 'overdue' ? 'alert-danger' : 'alert-info'} mt-8`}>
                     <span>{plan.status === 'overdue' ? '🚨' : '📆'}</span>
-                    <span>
-                        {plan.status === 'overdue'
-                            ? `Behind schedule! Target date passed. Still need ${plan.needed.toLocaleString()} ${cur}.`
-                            : `Save ${plan.needed.toLocaleString()} ${cur}/month for ${plan.months} months to stay on track.`
-                        }
-                    </span>
+                    <span>{plan.status === 'overdue' ? 'Behind schedule!' : `Save ${plan.needed.toLocaleString()} ${cur}/month`}</span>
                 </div>
             )}
 
-            {/* Recurring status */}
-            {goal.isRecurring && (
-                <div className={`alert ${goal.saved >= goal.monthlyCost ? 'alert-success' : 'alert-warning'} mt-8`} style={{ marginBottom: 0 }}>
-                    <span>{goal.saved >= goal.monthlyCost ? '✅' : '⚠️'}</span>
-                    <span>
-                        {goal.saved >= goal.monthlyCost
-                            ? 'Next payment is fully funded!'
-                            : `${(goal.monthlyCost - goal.saved).toLocaleString()} ${cur} needed to fund next payment.`
-                        }
-                    </span>
-                </div>
-            )}
-
-            {/* Action Buttons */}
             {!isFunded && (
-                <div style={{ display: 'flex', gap: 6, marginTop: 10 }}>
-                    <button
-                        className={`btn btn-sm ${mode === 'fund' ? 'btn-primary' : 'btn-ghost'}`}
-                        onClick={() => setMode(mode === 'fund' ? null : 'fund')}
-                    >
-                        + Fund
-                    </button>
-                    {goal.saved > 0 && (
-                        <button
-                            className={`btn btn-sm ${mode === 'withdraw' ? 'btn-danger' : 'btn-ghost'}`}
-                            onClick={() => setMode(mode === 'withdraw' ? null : 'withdraw')}
-                        >
-                            − Withdraw
-                        </button>
+                <div style={{ display: 'flex', gap: 6, marginTop: 12 }}>
+                    <button className="btn btn-sm btn-primary" onClick={() => setMode('fund')}>+ Fund</button>
+                    {goal.saved > 0 && <button className="btn btn-sm btn-ghost" onClick={() => setMode('withdraw')}>− Withdraw</button>}
+                    {!goal.isBuffer && !goal.isRecurring && (
+                        <button className="btn btn-sm btn-danger" onClick={() => dispatch({ type: 'DELETE_GOAL', id: goal.id })} style={{ marginLeft: 'auto' }}>✕</button>
                     )}
                 </div>
             )}
 
-            {/* Fund Form */}
             {mode === 'fund' && (
-                <form onSubmit={handleFund} className="input-row mt-8">
-                    <input
-                        type="number"
-                        placeholder={`Max ${Math.min(remaining, cash)}`}
-                        value={fundAmt}
-                        onChange={e => setFundAmt(e.target.value)}
-                        min="0"
-                        max={Math.min(remaining, cash)}
-                        autoFocus
-                    />
+                <form onSubmit={handleFund} className="input-row mt-12">
+                    <input type="number" placeholder="Amount" value={fundAmt} onChange={e => setFundAmt(e.target.value)} max={Math.min(remaining, cash)} autoFocus />
                     <button className="btn btn-sm btn-primary" type="submit">Add</button>
+                    <button className="btn btn-sm btn-ghost" type="button" onClick={() => setMode(null)}>✕</button>
                 </form>
             )}
 
-            {/* Withdraw Form */}
             {mode === 'withdraw' && (
-                <form onSubmit={handleWithdraw} className="input-row mt-8">
-                    <input
-                        type="number"
-                        placeholder={`Max ${goal.saved}`}
-                        value={withdrawAmt}
-                        onChange={e => setWithdrawAmt(e.target.value)}
-                        min="0"
-                        max={goal.saved}
-                        autoFocus
-                    />
-                    <button className="btn btn-sm btn-danger" type="submit">Withdraw</button>
+                <form onSubmit={handleWithdraw} className="input-row mt-12">
+                    <input type="number" placeholder="Amount" value={withdrawAmt} onChange={e => setWithdrawAmt(e.target.value)} max={goal.saved} autoFocus />
+                    <button className="btn btn-sm btn-danger" type="submit">Back to Cash</button>
+                    <button className="btn btn-sm btn-ghost" type="button" onClick={() => setMode(null)}>✕</button>
                 </form>
             )}
         </div>
