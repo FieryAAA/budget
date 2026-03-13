@@ -1,6 +1,6 @@
 import { createContext, useContext, useReducer, useEffect } from 'react';
 
-const STORAGE_KEY = 'finplan_v4';
+const STORAGE_KEY = 'finplan_v5';
 
 let _idCounter = Date.now();
 export function uid() { return (++_idCounter).toString(36); }
@@ -229,32 +229,29 @@ function reducer(state, action) {
         .sort((a, b) => order[a.priority] - order[b.priority])
         .forEach(g => { const t = Math.min(g.target - g.saved, pool); g.saved += t; pool -= t; });
 
-      // ── Auto-grow buffer ──────────────────────────────────────────────────
-      // If buffer is now fully funded (and has a real target), level up safetyMonths
+      // ── Flag buffer level-up (don't bump yet — wait for user to dismiss banner) ──
+      // safetyMonths grows only when the user taps the banner, not immediately here
       const bufAfter = goals.find(g => g.isBuffer);
       const maxMonths = base.bufferMaxMonths || 12;
-      let newSafetyMonths = base.safetyMonths;
-      let leveledUp = false;
-      if (bufAfter && bufAfter.target > 0 && bufAfter.saved >= bufAfter.target && newSafetyMonths < maxMonths) {
-        newSafetyMonths = newSafetyMonths + 1;
-        leveledUp = true;
-      }
+      const leveledUp = !!(bufAfter && bufAfter.target > 0 && bufAfter.saved >= bufAfter.target && base.safetyMonths < maxMonths);
 
       const inc = { id: uid(), source: action.source, amount: action.amount, date: new Date().toISOString() };
       next = {
         ...base,
         cash: base.cash + pool,
         goals,
-        safetyMonths: newSafetyMonths,
-        bufferLeveledUp: leveledUp,
+        bufferLeveledUp: leveledUp || base.bufferLeveledUp,
         incomeEvents: [inc, ...base.incomeEvents],
       };
       break;
     }
 
-    case 'DISMISS_BUFFER_LEVELUP':
-      next = { ...base, bufferLeveledUp: false };
+    case 'DISMISS_BUFFER_LEVELUP': {
+      // NOW bump safetyMonths — user has seen the milestone
+      const newMonths = Math.min((base.safetyMonths || 3) + 1, base.bufferMaxMonths || 12);
+      next = { ...base, bufferLeveledUp: false, safetyMonths: newMonths };
       break;
+    }
 
     case 'SET_BUFFER_MAX':
       next = { ...base, bufferMaxMonths: Math.max(base.safetyMonths, action.value) };
