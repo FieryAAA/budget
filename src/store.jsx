@@ -81,7 +81,10 @@ function loadState() {
       return s;
     }
   } catch { }
-  return defaultState;
+  // Fresh start — sync buffer target from defaultState too
+  const fresh = JSON.parse(JSON.stringify(defaultState));
+  fresh.goals = fresh.goals.map(g => g.isBuffer ? { ...g, target: calculateBufferTarget(fresh) } : g);
+  return fresh;
 }
 
 function saveState(s) {
@@ -227,12 +230,12 @@ function reducer(state, action) {
         .forEach(g => { const t = Math.min(g.target - g.saved, pool); g.saved += t; pool -= t; });
 
       // ── Auto-grow buffer ──────────────────────────────────────────────────
-      // If buffer is now fully funded, level up safetyMonths (cap at bufferMaxMonths)
+      // If buffer is now fully funded (and has a real target), level up safetyMonths
       const bufAfter = goals.find(g => g.isBuffer);
       const maxMonths = base.bufferMaxMonths || 12;
       let newSafetyMonths = base.safetyMonths;
       let leveledUp = false;
-      if (bufAfter && bufAfter.saved >= bufAfter.target && newSafetyMonths < maxMonths) {
+      if (bufAfter && bufAfter.target > 0 && bufAfter.saved >= bufAfter.target && newSafetyMonths < maxMonths) {
         newSafetyMonths = newSafetyMonths + 1;
         leveledUp = true;
       }
