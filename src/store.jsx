@@ -1,6 +1,6 @@
 import { createContext, useContext, useReducer, useEffect } from 'react';
 
-const STORAGE_KEY = 'finplan_v3';
+const STORAGE_KEY = 'finplan_v4';
 
 let _idCounter = Date.now();
 export function uid() { return (++_idCounter).toString(36); }
@@ -149,10 +149,15 @@ function reducer(state, action) {
     case 'FUND_GOAL': {
       const goal = base.goals.find(g => g.id === action.id);
       if (!goal) return base;
-      const amt = Math.min(action.amount, base.cash, goal.target - goal.saved);
+      const totalAvailable = base.cash + base.balance;
+      const amt = Math.min(action.amount, totalAvailable, goal.target - goal.saved);
+      // Deduct from cash first, then balance
+      const fromCash = Math.min(amt, base.cash);
+      const fromBalance = amt - fromCash;
       next = {
         ...base,
-        cash: base.cash - amt,
+        cash: base.cash - fromCash,
+        balance: base.balance - fromBalance,
         goals: base.goals.map(g => g.id === action.id ? { ...g, saved: g.saved + amt } : g),
       };
       break;
