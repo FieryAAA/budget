@@ -1,11 +1,11 @@
 import { useState } from 'react';
-import { useStore, calculateBufferTarget, monthlyEssentials, calcTopUpAmount } from '../store';
+import { useStore, monthlyEssentials, calcTopUpAmount } from '../store';
 import ProgressBar from './ProgressBar';
 import GoalCard from './GoalCard';
 
 export default function Dashboard({ onTabChange }) {
     const { state, dispatch } = useStore();
-    const { balance, cash, monthly, goals, safetyMonths, monthlyTransferred, settings } = state;
+    const { balance, cash, monthly, goals, safetyMonths, bufferMaxMonths, bufferLeveledUp, monthlyTransferred, settings } = state;
     const cur = settings.currency;
 
     const [toast, setToast] = useState(null);
@@ -13,11 +13,9 @@ export default function Dashboard({ onTabChange }) {
     const bufferGoal = goals.find(g => g.isBuffer);
     const totalAllocated = goals.reduce((s, g) => s + g.saved, 0);
     const totalTargets = goals.reduce((s, g) => s + g.target, 0);
-    const spendPct = monthly.budget > 0 ? (monthly.spent / monthly.budget) * 100 : 0;
     const essentials = monthlyEssentials(state);
     const balancePct = essentials > 0 ? (balance / essentials) * 100 : 0;
     const topUpAmt = calcTopUpAmount(state);
-    const day = new Date().getDate();
 
     const topGoals = goals
         .filter(g => !g.isBuffer && g.saved < g.target)
@@ -26,15 +24,16 @@ export default function Dashboard({ onTabChange }) {
     const readyGoals = goals.filter(g => !g.isBuffer && !g.isRecurring && g.saved >= g.target);
 
     function handleTopUp() {
-        dispatch({ type: 'TOP_UP_BALANCE' });
         if (topUpAmt > 0) {
-            setToast(`Transferred ${topUpAmt} ${cur} from Buffer to Current Balance`);
-            setTimeout(() => setToast(null), 4000);
+            dispatch({ type: 'TOP_UP_BALANCE' });
+            setToast(`✅ Transferred ${topUpAmt} ${cur} from Buffer`);
         } else {
-            setToast('Buffer is empty — add income first');
-            setTimeout(() => setToast(null), 3000);
+            setToast('⚠️ Buffer is empty — add income first');
         }
+        setTimeout(() => setToast(null), 3500);
     }
+
+    const maxDisplay = Math.min(bufferMaxMonths || 12, 12);
 
     return (
         <div>
@@ -42,17 +41,32 @@ export default function Dashboard({ onTabChange }) {
             {toast && (
                 <div style={{
                     position: 'fixed', top: 16, left: '50%', transform: 'translateX(-50%)',
-                    background: 'var(--card-bg)', border: '1px solid var(--green)',
-                    borderRadius: 12, padding: '10px 18px', zIndex: 1000,
-                    fontSize: '0.82rem', color: 'var(--green)', boxShadow: '0 4px 24px rgba(0,0,0,0.4)',
+                    background: '#1e293b', border: '1px solid var(--green)',
+                    borderRadius: 12, padding: '10px 20px', zIndex: 1000,
+                    fontSize: '0.82rem', color: 'var(--green)', boxShadow: '0 4px 24px rgba(0,0,0,0.5)',
                     whiteSpace: 'nowrap',
-                }}>
-                    ✅ {toast}
+                }}>{toast}</div>
+            )}
+
+            {/* ── LEVEL-UP BANNER ─────────────────────────────────────────── */}
+            {bufferLeveledUp && (
+                <div
+                    className="alert alert-success"
+                    style={{ cursor: 'pointer', background: 'rgba(34,197,94,0.12)', border: '1px solid rgba(34,197,94,0.5)', marginBottom: 12 }}
+                    onClick={() => dispatch({ type: 'DISMISS_BUFFER_LEVELUP' })}
+                >
+                    <span style={{ fontSize: '1.5rem' }}>🏆</span>
+                    <div style={{ flex: 1 }}>
+                        <div style={{ fontWeight: 800 }}>Buffer leveled up to {safetyMonths} months!</div>
+                        <div style={{ fontSize: '0.72rem', opacity: 0.75 }}>
+                            Your safety net grew automatically. Next target: {safetyMonths + 1} months × {essentials} {cur} = {(safetyMonths + 1) * essentials} {cur}. Tap to dismiss.
+                        </div>
+                    </div>
                 </div>
             )}
 
             {/* ── CURRENT BALANCE ─────────────────────────────────────────── */}
-            <div className="card" style={balance < 30 && balance > 0 ? { borderColor: 'rgba(234,179,8,0.4)' } : {}}>
+            <div className="card" style={balance < 30 ? { borderColor: 'rgba(234,179,8,0.4)' } : {}}>
                 <div className="flex-between mb-4">
                     <div className="card-title"><span className="icon">💳</span> Current Balance</div>
                     <button
@@ -74,20 +88,16 @@ export default function Dashboard({ onTabChange }) {
                     color={balancePct >= 80 ? 'green' : balancePct >= 40 ? 'yellow' : 'red'}
                 />
                 {monthly.spent > 0 && (
-                    <div className="card-sub mt-8">
-                        🛒 Spent this month: <strong>{monthly.spent.toLocaleString()} {cur}</strong>
-                    </div>
+                    <div className="card-sub mt-8">🛒 Spent this month: <strong>{monthly.spent.toLocaleString()} {cur}</strong></div>
                 )}
-                {balance < 30 && balance >= 0 && (
+                {balance < 30 && (
                     <div className="alert alert-warning mt-8" style={{ marginBottom: 0 }}>
-                        <span>⚠️</span>
-                        <span>Balance is low! Top up from Buffer or log new income.</span>
+                        <span>⚠️</span><span>Balance is low! Top up or log new income.</span>
                     </div>
                 )}
                 {monthlyTransferred > 0 && (
-                    <div className="card-sub mt-4" style={{ color: 'rgba(255,255,255,0.35)', fontSize: '0.68rem' }}>
+                    <div className="card-sub mt-4" style={{ color: 'rgba(255,255,255,0.3)', fontSize: '0.67rem' }}>
                         Buffer → Balance this month: {monthlyTransferred} {cur}
-                        {day <= 14 ? ` · Day ${day} (First half: target ${Math.round(essentials / 2)} ${cur})` : ` · Day ${day} (Second half)`}
                     </div>
                 )}
             </div>
@@ -100,22 +110,44 @@ export default function Dashboard({ onTabChange }) {
                 </div>
             )}
 
-            {/* ── BUFFER ──────────────────────────────────────────────────── */}
+            {/* ── SAFETY BUFFER (Progressive) ─────────────────────────────── */}
             {bufferGoal && (
                 <div className="card mt-12">
                     <div className="flex-between mb-4">
                         <div className="card-title"><span className="icon">🛡️</span> Safety Buffer</div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                            <span className="text-muted" style={{ fontSize: '0.65rem' }}>Cover:</span>
+                        <div style={{ fontSize: '0.65rem', color: 'rgba(255,255,255,0.4)', display: 'flex', alignItems: 'center', gap: 4 }}>
+                            Ceiling:
                             <select
-                                value={safetyMonths}
-                                onChange={e => dispatch({ type: 'SET_SAFETY_MONTHS', value: parseInt(e.target.value) })}
-                                style={{ background: 'var(--card-bg)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: 6, color: '#fff', padding: '2px 6px', fontSize: '0.7rem', cursor: 'pointer' }}
+                                value={bufferMaxMonths || 12}
+                                onChange={e => dispatch({ type: 'SET_BUFFER_MAX', value: parseInt(e.target.value) })}
+                                style={{ background: 'transparent', border: 'none', color: 'rgba(255,255,255,0.5)', fontSize: '0.65rem', cursor: 'pointer' }}
                             >
-                                {[2, 3, 4, 5, 6].map(m => <option key={m} value={m}>{m} months</option>)}
+                                {[6, 9, 12, 18, 24].map(m => <option key={m} value={m}>{m}mo</option>)}
                             </select>
                         </div>
                     </div>
+
+                    {/* Growth arc — tile grid showing progress through month milestones */}
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 10 }}>
+                        {Array.from({ length: maxDisplay }, (_, i) => i + 1).map(m => (
+                            <div key={m} title={`${m} month${m > 1 ? 's' : ''}: ${m * essentials} ${cur}`} style={{
+                                width: 22, height: 22, borderRadius: 4,
+                                fontSize: '0.55rem', fontWeight: 700,
+                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                background: m < safetyMonths ? 'var(--green)' : m === safetyMonths ? 'var(--blue)' : 'rgba(255,255,255,0.07)',
+                                color: m <= safetyMonths ? '#fff' : 'rgba(255,255,255,0.25)',
+                                border: m === safetyMonths ? '2px solid rgba(255,255,255,0.4)' : '2px solid transparent',
+                                transition: 'all 0.4s',
+                            }}>{m}</div>
+                        ))}
+                    </div>
+                    <div style={{ fontSize: '0.68rem', color: 'rgba(255,255,255,0.4)', marginBottom: 8 }}>
+                        Current: <strong style={{ color: 'var(--blue)' }}>{safetyMonths}mo</strong> ({safetyMonths * essentials} {cur})
+                        {safetyMonths < (bufferMaxMonths || 12) && (
+                            <> → Next: <strong style={{ color: 'rgba(255,255,255,0.55)' }}>{safetyMonths + 1}mo</strong> ({(safetyMonths + 1) * essentials} {cur})</>
+                        )}
+                    </div>
+
                     <ProgressBar
                         value={bufferGoal.saved}
                         max={bufferGoal.target}
@@ -125,8 +157,8 @@ export default function Dashboard({ onTabChange }) {
                     />
                     <div className="card-sub mt-8">
                         {bufferGoal.saved >= bufferGoal.target
-                            ? <span className="text-green">✅ Buffer fully funded ({safetyMonths} months of essentials)</span>
-                            : <span style={{ color: 'var(--red)' }}>⚠️ {(bufferGoal.target - bufferGoal.saved).toLocaleString()} {cur} to reach safety target</span>
+                            ? <span className="text-green">✅ {safetyMonths}-month buffer full — expanding to {safetyMonths + 1} months next income</span>
+                            : <span style={{ color: 'var(--red)' }}>⚠️ {(bufferGoal.target - bufferGoal.saved).toLocaleString()} {cur} needed to reach {safetyMonths}-month target</span>
                         }
                     </div>
                 </div>
@@ -137,7 +169,7 @@ export default function Dashboard({ onTabChange }) {
                 <div className="card-title"><span className="icon">🛒</span> Monthly Essentials</div>
                 <div className="mini-grid">
                     <div className="mini-card"><div className="label">Survival</div><div className="value">{monthly.budget} {cur}</div></div>
-                    <div className="mini-card"><div className="label">Gym / Recurring</div><div className="value">{essentials - monthly.budget} {cur}</div></div>
+                    <div className="mini-card"><div className="label">Recurring</div><div className="value">{essentials - monthly.budget} {cur}</div></div>
                     <div className="mini-card"><div className="label">Total</div><div className="value text-blue">{essentials} {cur}</div></div>
                 </div>
             </div>

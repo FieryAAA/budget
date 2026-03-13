@@ -50,7 +50,9 @@ const defaultState = {
   monthlyTransferred: 0,   // TND moved from buffer→balance this month
   transferResetMonth: new Date().toISOString().slice(0, 7),
   monthly: { budget: 200, spent: 0, expenses: [], resetDate: new Date().toISOString().slice(0, 7) },
-  safetyMonths: 3,
+  safetyMonths: 3,         // Current buffer coverage target (grows automatically)
+  bufferMaxMonths: 12,     // Maximum months the buffer will grow to
+  bufferLeveledUp: false,  // Flag set when buffer auto-grew (for Dashboard toast)
   goals: [
     { id: 'buffer', name: 'Safety Buffer', target: 0, saved: 0, priority: 'High', category: 'Essential', isBuffer: true, isRecurring: false },
     { id: 'gym', name: 'Gym Membership', target: 70, saved: 0, priority: 'High', category: 'Essential', isBuffer: false, isRecurring: true, monthlyCost: 70 },
@@ -68,12 +70,14 @@ function loadState() {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (raw) {
       const s = JSON.parse(raw);
-      // Sync buffer target on load
-      s.goals = s.goals.map(g => g.isBuffer ? { ...g, target: calculateBufferTarget(s) } : g);
       // Ensure new fields exist (migration)
       if (s.balance === undefined) s.balance = s.cash || 0;
       if (s.monthlyTransferred === undefined) s.monthlyTransferred = 0;
       if (s.transferResetMonth === undefined) s.transferResetMonth = new Date().toISOString().slice(0, 7);
+      if (s.bufferMaxMonths === undefined) s.bufferMaxMonths = 12;
+      if (s.bufferLeveledUp === undefined) s.bufferLeveledUp = false;
+      // Sync buffer target on load
+      s.goals = s.goals.map(g => g.isBuffer ? { ...g, target: calculateBufferTarget(s) } : g);
       return s;
     }
   } catch { }
@@ -202,7 +206,7 @@ function reducer(state, action) {
       let pool = action.amount;
       const goals = base.goals.map(g => ({ ...g }));
 
-      // 1. Buffer first
+      // 1. Buffer first (always top priority)
       const buf = goals.find(g => g.isBuffer);
       if (buf) { const t = Math.min(buf.target - buf.saved, pool); buf.saved += t; pool -= t; }
 
@@ -217,15 +221,36 @@ function reducer(state, action) {
         .sort((a, b) => order[a.priority] - order[b.priority])
         .forEach(g => { const t = Math.min(g.target - g.saved, pool); g.saved += t; pool -= t; });
 
+      // ── Auto-grow buffer ──────────────────────────────────────────────────
+      // If buffer is now fully funded, level up safetyMonths (cap at bufferMaxMonths)
+      const bufAfter = goals.find(g => g.isBuffer);
+      const maxMonths = base.bufferMaxMonths || 12;
+      let newSafetyMonths = base.safetyMonths;
+      let leveledUp = false;
+      if (bufAfter && bufAfter.saved >= bufAfter.target && newSafetyMonths < maxMonths) {
+        newSafetyMonths = newSafetyMonths + 1;
+        leveledUp = true;
+      }
+
       const inc = { id: uid(), source: action.source, amount: action.amount, date: new Date().toISOString() };
       next = {
         ...base,
-        cash: base.cash + pool, // leftover stays as free cash
+        cash: base.cash + pool,
         goals,
+        safetyMonths: newSafetyMonths,
+        bufferLeveledUp: leveledUp,
         incomeEvents: [inc, ...base.incomeEvents],
       };
       break;
     }
+
+    case 'DISMISS_BUFFER_LEVELUP':
+      next = { ...base, bufferLeveledUp: false };
+      break;
+
+    case 'SET_BUFFER_MAX':
+      next = { ...base, bufferMaxMonths: Math.max(base.safetyMonths, action.value) };
+      break;
 
     // ── Monthly spending ─────────────────────────────────────────────────────
     case 'SET_MONTHLY_BUDGET':
@@ -233,7 +258,7 @@ function reducer(state, action) {
       break;
 
     case 'SET_SAFETY_MONTHS':
-      next = { ...base, safetyMonths: action.value };
+      next = { ...base, safetyMonths: action.value, bufferLeveledUp: false };
       break;
 
     case 'ADD_EXPENSE': {
