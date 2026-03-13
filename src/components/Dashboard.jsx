@@ -127,20 +127,29 @@ export default function Dashboard({ onTabChange }) {
                         </div>
                     </div>
 
-                    {/* Growth arc — tile grid showing progress through month milestones */}
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 10 }}>
-                        {Array.from({ length: maxDisplay }, (_, i) => i + 1).map(m => (
-                            <div key={m} title={`${m} month${m > 1 ? 's' : ''}: ${m * essentials} ${cur}`} style={{
-                                width: 22, height: 22, borderRadius: 4,
-                                fontSize: '0.55rem', fontWeight: 700,
-                                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                background: m < safetyMonths ? 'var(--green)' : m === safetyMonths ? 'var(--blue)' : 'rgba(255,255,255,0.07)',
-                                color: m <= safetyMonths ? '#fff' : 'rgba(255,255,255,0.25)',
-                                border: m === safetyMonths ? '2px solid rgba(255,255,255,0.4)' : '2px solid transparent',
-                                transition: 'all 0.4s',
-                            }}>{m}</div>
-                        ))}
-                    </div>
+                    {/* Growth arc — tiles reflect ACTUAL funded months, not just milestone */}
+                    {(() => {
+                        const fundedMonths = essentials > 0 ? Math.floor((bufferGoal.saved || 0) / essentials) : 0;
+                        return (
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 10 }}>
+                                {Array.from({ length: maxDisplay }, (_, i) => i + 1).map(m => {
+                                    const isActuallyFunded = m <= fundedMonths;
+                                    const isCurrentGoal = m === safetyMonths && !isActuallyFunded;
+                                    return (
+                                        <div key={m} title={`${m}mo: ${m * essentials} ${cur}${isActuallyFunded ? ' ✅ funded' : ''}`} style={{
+                                            width: 22, height: 22, borderRadius: 4,
+                                            fontSize: '0.55rem', fontWeight: 700,
+                                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                            background: isActuallyFunded ? 'var(--green)' : isCurrentGoal ? 'var(--blue)' : 'rgba(255,255,255,0.07)',
+                                            color: isActuallyFunded || isCurrentGoal ? '#fff' : 'rgba(255,255,255,0.25)',
+                                            border: isCurrentGoal ? '2px solid rgba(255,255,255,0.4)' : '2px solid transparent',
+                                            transition: 'all 0.4s',
+                                        }}>{m}</div>
+                                    );
+                                })}
+                            </div>
+                        );
+                    })()}
                     <div style={{ fontSize: '0.68rem', color: 'rgba(255,255,255,0.4)', marginBottom: 8 }}>
                         Current: <strong style={{ color: 'var(--blue)' }}>{safetyMonths}mo</strong> ({safetyMonths * essentials} {cur})
                         {safetyMonths < (bufferMaxMonths || 12) && (
