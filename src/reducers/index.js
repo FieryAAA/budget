@@ -105,9 +105,24 @@ export function rootReducer(state, action) {
     case 'DELETE_INCOME': {
       const inc = base.incomeEvents?.find(e => e.id === action.id);
       if (!inc) return base;
+      
+      let nextCash = base.cash;
+      let nextGoals = base.goals.map(g => ({ ...g }));
+
+      if (inc.allocations) {
+        for (const [goalId, amt] of Object.entries(inc.allocations)) {
+            const goal = nextGoals.find(g => g.id === goalId);
+            if (goal) goal.saved = Math.max(0, goal.saved - amt);
+        }
+        nextCash = Math.max(0, nextCash - (inc.cashAllocated || 0));
+      } else {
+        nextCash = Math.max(0, nextCash - inc.amount);
+      }
+
       next = {
         ...base,
-        cash: Math.max(0, base.cash - inc.amount),
+        cash: nextCash,
+        goals: nextGoals,
         incomeEvents: base.incomeEvents.filter(e => e.id !== action.id),
       };
       break;
@@ -117,6 +132,9 @@ export function rootReducer(state, action) {
       let pool = action.amount;
       const goals = base.goals.map(g => ({ ...g }));
       const essentials = monthlyEssentials(base);
+      
+      const prevSaved = {};
+      goals.forEach(g => prevSaved[g.id] = g.saved);
 
       const buf = goals.find(g => g.isBuffer);
       if (buf) {
@@ -150,8 +168,21 @@ export function rootReducer(state, action) {
         pool -= toBuffer;
       }
 
+      const allocations = {};
+      goals.forEach(g => {
+        const diff = g.saved - prevSaved[g.id];
+        if (diff > 0) allocations[g.id] = diff;
+      });
+
       const source = action.source ? DOMPurify.sanitize(action.source) : 'Unknown Source';
-      const inc = { id: uid(), source, amount: action.amount, date: new Date().toISOString() };
+      const inc = { 
+        id: uid(), 
+        source, 
+        amount: action.amount, 
+        date: new Date().toISOString(),
+        allocations,
+        cashAllocated: pool
+      };
       next = {
         ...base,
         cash: base.cash + pool,
