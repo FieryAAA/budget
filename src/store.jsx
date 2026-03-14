@@ -228,16 +228,11 @@ function reducer(state, action) {
         pool -= toBuffer;
       }
 
-      const bufAfter = goals.find(g => g.isBuffer);
-      const maxMonths = base.bufferMaxMonths || 12;
-      const leveledUp = !!(bufAfter && bufAfter.target > 0 && bufAfter.saved >= bufAfter.target && base.safetyMonths < maxMonths);
-
       const inc = { id: uid(), source: action.source, amount: action.amount, date: new Date().toISOString() };
       next = {
         ...base,
         cash: base.cash + pool,
         goals,
-        bufferLeveledUp: leveledUp || base.bufferLeveledUp,
         incomeEvents: [inc, ...base.incomeEvents],
       };
       break;
@@ -302,8 +297,17 @@ function reducer(state, action) {
   }
 
   if (next) {
+    // 1. Always ensure buffer target is synchronized with current budget
     const bufTarget = calculateBufferTarget(next);
     next.goals = next.goals.map(g => g.isBuffer ? { ...g, target: bufTarget } : g);
+
+    // 2. Check for level ups organically
+    // If the saved amount is >= target and we haven't hit the ceiling, trigger level up warning.
+    const bufAfter = next.goals.find(g => g.isBuffer);
+    const maxMonths = next.bufferMaxMonths || 12;
+    if (bufAfter && bufAfter.target > 0 && bufAfter.saved >= bufAfter.target && next.safetyMonths < maxMonths && !next.bufferLeveledUp) {
+      next.bufferLeveledUp = true;
+    }
   }
   return next || base;
 }

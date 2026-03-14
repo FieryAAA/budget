@@ -9,6 +9,7 @@ export default function Dashboard({ onTabChange }) {
     const cur = settings.currency;
 
     const [toast, setToast] = useState(null);
+    const [showRec, setShowRec] = useState(false);
 
     const bufferGoal = goals.find(g => g.isBuffer);
     const totalAllocated = goals.reduce((s, g) => s + g.saved, 0);
@@ -31,6 +32,57 @@ export default function Dashboard({ onTabChange }) {
     const readyGoals = goals.filter(g => !g.isBuffer && !g.isRecurring && g.saved >= g.target);
 
     const maxDisplay = bufferMaxMonths || 12;
+
+    // AI Recommendation Logic based on personal finance principles
+    function getRecommendation() {
+        if (cash <= 0) return null;
+
+        let pool = cash;
+        const recs = [];
+        const bufferMonths = essentials > 0 ? (bufferGoal?.saved || 0) / essentials : 0;
+
+        // Principle 1: Base Safety Net (3 months minimum)
+        if (bufferMonths < 3) {
+            const neededFor3 = Math.max(0, (3 * essentials) - (bufferGoal?.saved || 0));
+            const allocation = Math.min(neededFor3, pool);
+            if (allocation > 0) {
+                recs.push({ title: "Build Base Safety (Top Priority)", amount: allocation, reason: "Financial experts recommend prioritizing a 3-month emergency fund above all else to protect against sudden shocks." });
+                pool -= allocation;
+            }
+        }
+
+        // Principle 2: High Priority / Debt 
+        const highGoals = goals.filter(g => !g.isBuffer && g.priority === 'High' && g.saved < g.target);
+        if (pool > 0 && highGoals.length > 0) {
+            // If safety is ok, push hard on high priority. If safety is great (>6mo), balance it.
+            const ratio = bufferMonths >= 6 ? 0.5 : 0.8;
+            const allocation = Math.min(pool * ratio, highGoals.reduce((s, g) => s + (g.target - g.saved), 0));
+            if (allocation > 1) {
+                recs.push({ title: "Tackle High Priorities", amount: Math.floor(allocation), reason: "With your baseline safety intact, aggressively fund your most critical goals (like debt or urgent upgrades)." });
+                pool -= Math.floor(allocation);
+            }
+        }
+
+        // Principle 3: Medium/Low Priority (The "Wants")
+        const otherGoals = goals.filter(g => !g.isBuffer && g.priority !== 'High' && g.saved < g.target);
+        if (pool > 0 && otherGoals.length > 0) {
+            const allocation = Math.min(pool, otherGoals.reduce((s, g) => s + (g.target - g.saved), 0));
+            if (allocation > 1) {
+                recs.push({ title: "Fund Life & Comfort", amount: Math.floor(allocation), reason: "It's important to build the life you want while being responsible. Allocate the rest to your medium and low-priority goals." });
+                pool -= Math.floor(allocation);
+            }
+        }
+
+        // Principle 4: Deep Safety (If everything else is mostly handled)
+        if (pool > 0 && bufferMonths < maxDisplay) {
+            recs.push({ title: "Expand The Moat", amount: pool, reason: "Your goals are strongly funded. Reinforce your long-term security by pumping the rest into your Safety Buffer ceiling." });
+            pool = 0;
+        } else if (pool > 0) {
+            recs.push({ title: "Unbound Wealth", amount: pool, reason: "You have excess cash with no immediate targets. Consider investing in index funds or creating new ambitious goals!" });
+        }
+
+        return recs;
+    }
 
     return (
         <div>
@@ -132,9 +184,49 @@ export default function Dashboard({ onTabChange }) {
 
             {/* Free cash alert */}
             {cash > 0 && (
-                <div className="alert alert-info mt-12" style={{ cursor: 'pointer' }} onClick={() => onTabChange('income')}>
-                    <span>🧠</span>
-                    <span>You have <strong>{cash} {cur}</strong> unallocated. <strong>Allocate it →</strong></span>
+                <div className="mt-12">
+                    <div style={{ display: 'flex', gap: 8 }}>
+                        <div className="alert alert-info" style={{ cursor: 'pointer', flex: 1, margin: 0 }} onClick={() => onTabChange('income')}>
+                            <span>🧠</span>
+                            <span>You have <strong>{cash.toLocaleString()} {cur}</strong> unallocated. <strong>Allocate it →</strong></span>
+                        </div>
+                        <button
+                            className="btn"
+                            style={{ background: 'var(--blue)', color: 'white', fontWeight: 600, border: 'none', padding: '0 16px', borderRadius: 12, cursor: 'pointer' }}
+                            onClick={() => setShowRec(!showRec)}
+                        >
+                            🤖 AI Rec
+                        </button>
+                    </div>
+
+                    {showRec && (
+                        <div className="card mt-8" style={{ background: 'rgba(59,130,246,0.08)', border: '1px solid rgba(59,130,246,0.3)' }}>
+                            <div className="card-title text-blue" style={{ marginBottom: 16 }}>
+                                <span className="icon">🤖</span> Smart Allocation Recommendation
+                            </div>
+                            <div style={{ fontSize: '0.8rem', opacity: 0.8, marginBottom: 16 }}>
+                                Based on standard personal finance principles (Safety First, Debt/Priority Focus, Balanced Wants):
+                            </div>
+
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                                {getRecommendation().map((rec, i) => (
+                                    <div key={i} style={{ background: 'rgba(0,0,0,0.2)', padding: 12, borderRadius: 8 }}>
+                                        <div className="flex-between mb-4">
+                                            <strong style={{ color: '#fff' }}>{rec.title}</strong>
+                                            <strong className="text-blue">{rec.amount.toLocaleString()} {cur}</strong>
+                                        </div>
+                                        <div style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.6)', lineHeight: 1.4 }}>
+                                            {rec.reason}
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+
+                            <button className="btn btn-outline mt-16 w-full" onClick={() => onTabChange('income')}>
+                                Go to Allocation Wizard →
+                            </button>
+                        </div>
+                    )}
                 </div>
             )}
 
@@ -168,6 +260,15 @@ export default function Dashboard({ onTabChange }) {
             {totalTargets > 0 && (
                 <div className="card mt-24" style={{ background: 'rgba(59,130,246,0.05)', border: '1px dashed rgba(59,130,246,0.3)' }}>
                     <div className="card-title" style={{ fontSize: '0.8rem', opacity: 0.7 }}>Net Goal Progress</div>
+
+                    {/* New Metric: Total Put Aside (Total Allocated minus Buffer) */}
+                    <div className="flex-between mb-8">
+                        <div style={{ fontSize: '0.85rem' }}>Total Put Aside (Goals)</div>
+                        <strong className="text-blue">
+                            {Math.max(0, totalAllocated - (bufferGoal?.saved || 0)).toLocaleString()} {cur}
+                        </strong>
+                    </div>
+
                     <ProgressBar
                         value={totalAllocated}
                         max={totalTargets}
