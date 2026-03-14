@@ -34,6 +34,18 @@ function AppContent() {
                 <header className="app-header">
                     <h1>FinPlan</h1>
                     <div className="subtitle">Goal-Based Saving Planner</div>
+                    <button 
+                        className="btn btn-sm btn-ghost" 
+                        style={{ color: 'var(--red)', fontSize: '0.7rem', marginTop: 12 }}
+                        onClick={() => {
+                            if (window.confirm("Are you sure you want to erase all goals, income, and history? This cannot be undone.")) {
+                                localStorage.removeItem('finplan_v6');
+                                window.location.reload();
+                            }
+                        }}
+                    >
+                        ⚠️ Reset All App Data
+                    </button>
                 </header>
 
                 <main style={{ paddingTop: 8 }}>
