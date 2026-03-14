@@ -102,6 +102,17 @@ export function rootReducer(state, action) {
       break;
     }
 
+    case 'DELETE_INCOME': {
+      const inc = base.incomeEvents?.find(e => e.id === action.id);
+      if (!inc) return base;
+      next = {
+        ...base,
+        cash: Math.max(0, base.cash - inc.amount),
+        incomeEvents: base.incomeEvents.filter(e => e.id !== action.id),
+      };
+      break;
+    }
+
     case 'ALLOCATE_INCOME': {
       let pool = action.amount;
       const goals = base.goals.map(g => ({ ...g }));

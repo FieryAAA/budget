@@ -156,7 +156,7 @@ export default function IncomeEvents() {
             {/* History */}
             <div className="card mt-24">
                 <div className="card-title">Recent Income</div>
-                {incomeEvents.length === 0
+                {(!incomeEvents || incomeEvents.length === 0)
                     ? <div className="empty-state">No income logged yet</div>
                     : incomeEvents.slice(0, 10).map(inc => (
                         <div key={inc.id} className="list-item">
@@ -164,7 +164,15 @@ export default function IncomeEvents() {
                                 <div className="list-item-name">{inc.source}</div>
                                 <div className="list-item-meta">{new Date(inc.date).toLocaleDateString()}</div>
                             </div>
-                            <span className="text-green" style={{ fontWeight: 700 }}>+{inc.amount.toLocaleString()} {cur}</span>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                                <span className="text-green" style={{ fontWeight: 700 }}>+{inc.amount.toLocaleString()} {cur}</span>
+                                <button 
+                                    className="btn btn-sm btn-danger" 
+                                    onClick={() => dispatch({ type: 'DELETE_INCOME', id: inc.id })}
+                                    aria-label={`Delete ${inc.source} income`}
+                                    style={{ padding: '4px 8px', fontSize: '0.65rem' }}
+                                >✕</button>
+                            </div>
                         </div>
                     ))
                 }
