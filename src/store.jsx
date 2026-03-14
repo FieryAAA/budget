@@ -79,6 +79,13 @@ function loadState() {
       }
       // Sync buffer target on load
       s.goals = s.goals.map(g => g.isBuffer ? { ...g, target: calculateBufferTarget(s) } : g);
+
+      // Auto-trigger level up flag if they have enough organically
+      const bufAfter = s.goals.find(g => g.isBuffer);
+      const maxMonths = s.bufferMaxMonths || 12;
+      if (bufAfter && bufAfter.target > 0 && bufAfter.saved >= bufAfter.target && s.safetyMonths < maxMonths && !s.bufferLeveledUp) {
+        s.bufferLeveledUp = true;
+      }
       return s;
     }
   } catch { }
