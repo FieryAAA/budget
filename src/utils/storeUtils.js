@@ -21,7 +21,8 @@ export function getMonthlySaving(goal) {
   if (!goal.targetDate || goal.saved >= goal.target) return null;
   const now = new Date();
   const currentMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-  const targetDateObj = new Date(goal.targetDate + '-01');
+  const [tYear, tMonth] = goal.targetDate.split('-');
+  const targetDateObj = new Date(parseInt(tYear, 10), parseInt(tMonth, 10) - 1, 1);
 
   const monthsDiff = (targetDateObj.getFullYear() - currentMonth.getFullYear()) * 12 + (targetDateObj.getMonth() - currentMonth.getMonth());
 

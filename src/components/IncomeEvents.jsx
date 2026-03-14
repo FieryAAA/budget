@@ -32,7 +32,8 @@ export default function IncomeEvents() {
                 // Manual calc for preview parity
                 const now = new Date();
                 const curMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-                const targetDateObj = new Date(targetDate + '-01');
+                const [tYear, tMonth] = targetDate.split('-');
+                const targetDateObj = new Date(parseInt(tYear, 10), parseInt(tMonth, 10) - 1, 1);
                 const diff = (targetDateObj.getFullYear() - curMonth.getFullYear()) * 12 + (targetDateObj.getMonth() - curMonth.getMonth());
                 if (diff >= 0) {
                     const inst = Math.ceil((g.target - g.saved) / (diff + 1));
