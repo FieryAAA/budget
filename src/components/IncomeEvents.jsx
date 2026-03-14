@@ -3,7 +3,7 @@ import { useStore } from '../store';
 
 export default function IncomeEvents() {
     const { state, dispatch } = useStore();
-    const { incomeEvents, goals, balance, cash, settings } = state;
+    const { incomeEvents, goals, cash, settings } = state;
     const cur = settings.currency;
 
     const [source, setSource] = useState('');
@@ -12,24 +12,46 @@ export default function IncomeEvents() {
 
     function previewAllocation(incAmount) {
         let pool = incAmount;
-        const suggestion = { buffer: 0, recurring: [], goals: [], cash: 0, total: incAmount };
+        const suggestion = { survival: 0, installments: [], priorities: [], cash: 0, total: incAmount };
 
         const buffer = goals.find(g => g.isBuffer);
+        const essentials = state.monthly.budget + goals.filter(g => g.isRecurring).reduce((s, g) => s + (g.monthlyCost || 0), 0);
+
+        // 1. Survival
         if (buffer) {
-            const take = Math.min(Math.max(0, buffer.target - buffer.saved), pool);
-            suggestion.buffer = take; pool -= take;
+            const neededForSurvival = Math.max(0, essentials - buffer.saved);
+            const toSurvival = Math.min(neededForSurvival, pool);
+            suggestion.survival = toSurvival; pool -= toSurvival;
         }
-        goals.filter(g => g.isRecurring).forEach(g => {
-            const take = Math.min(Math.max(0, g.target - g.saved), pool);
-            if (take > 0) { suggestion.recurring.push({ name: g.name, amount: take }); pool -= take; }
+
+        // 2. Installments
+        goals.filter(g => !g.isBuffer && g.saved < g.target).forEach(g => {
+            const plan = state.goals.find(goal => goal.id === g.id); // Refresh via state
+            const targetDate = g.targetDate;
+            if (targetDate) {
+                // Manual calc for preview parity
+                const now = new Date();
+                const curMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+                const targetDateObj = new Date(targetDate + '-01');
+                const diff = (targetDateObj.getFullYear() - curMonth.getFullYear()) * 12 + (targetDateObj.getMonth() - curMonth.getMonth());
+                if (diff >= 0) {
+                    const inst = Math.ceil((g.target - g.saved) / (diff + 1));
+                    const take = Math.min(inst, pool);
+                    if (take > 0) { suggestion.installments.push({ name: g.name, amount: take }); pool -= take; }
+                }
+            }
         });
+
+        // 3. Priorities
         const pOrder = { High: 0, Medium: 1, Low: 2 };
-        goals.filter(g => !g.isBuffer && !g.isRecurring && g.saved < g.target)
+        goals.filter(g => !g.isBuffer && g.saved < g.target)
             .sort((a, b) => pOrder[a.priority] - pOrder[b.priority])
             .forEach(g => {
                 const take = Math.min(Math.max(0, g.target - g.saved), pool);
-                if (take > 0) { suggestion.goals.push({ name: g.name, amount: take }); pool -= take; }
+                if (take > 0) { suggestion.priorities.push({ name: g.name, amount: take }); pool -= take; }
             });
+
+        // 4. Back to Buffer or Cash
         suggestion.cash = pool;
         return suggestion;
     }
@@ -59,12 +81,11 @@ export default function IncomeEvents() {
         <div>
             <div className="section-title">💵 Income Management</div>
 
-            {/* Balance context */}
-            {(cash > 0 || balance > 0) && (
+    // Balance context
+            {cash > 0 && (
                 <div className="card" style={{ background: 'rgba(34,197,94,0.05)', border: '1px solid rgba(34,197,94,0.2)' }}>
                     <div style={{ display: 'flex', gap: 24 }}>
-                        <div><div className="label" style={{ fontSize: '0.65rem' }}>CURRENT BALANCE</div><div className="value text-green" style={{ fontSize: '1.1rem', fontWeight: 800 }}>{balance} {cur}</div></div>
-                        {cash > 0 && <div><div className="label" style={{ fontSize: '0.65rem' }}>UNALLOCATED CASH</div><div className="value text-blue" style={{ fontSize: '1.1rem', fontWeight: 800 }}>{cash} {cur}</div></div>}
+                        <div><div className="label" style={{ fontSize: '0.65rem' }}>UNALLOCATED CASH</div><div className="value text-blue" style={{ fontSize: '1.1rem', fontWeight: 800 }}>{cash} {cur}</div></div>
                     </div>
                 </div>
             )}
@@ -99,19 +120,19 @@ export default function IncomeEvents() {
                     </div>
 
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                        {draft.split.buffer > 0 && (
+                        {draft.split.survival > 0 && (
                             <div className="list-item">
-                                <div>🛡️ Safety Buffer</div>
-                                <div className="text-yellow" style={{ fontWeight: 700 }}>+{draft.split.buffer.toLocaleString()}</div>
+                                <div>🛡️ Survival Needs</div>
+                                <div className="text-yellow" style={{ fontWeight: 700 }}>+{draft.split.survival.toLocaleString()}</div>
                             </div>
                         )}
-                        {draft.split.recurring.map((r, i) => (
+                        {draft.split.installments.map((r, i) => (
                             <div className="list-item" key={i}>
-                                <div>🔄 {r.name}</div>
+                                <div>📆 {r.name} (Installment)</div>
                                 <div className="text-blue" style={{ fontWeight: 700 }}>+{r.amount.toLocaleString()}</div>
                             </div>
                         ))}
-                        {draft.split.goals.map((g, i) => (
+                        {draft.split.priorities.map((g, i) => (
                             <div className="list-item" key={i}>
                                 <div>{i === 0 ? '🔥' : '🎯'} {g.name}</div>
                                 <div className="text-green" style={{ fontWeight: 700 }}>+{g.amount.toLocaleString()}</div>

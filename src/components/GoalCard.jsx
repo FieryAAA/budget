@@ -4,7 +4,7 @@ import ProgressBar from './ProgressBar';
 
 export default function GoalCard({ goal, compact = false }) {
     const { state, dispatch } = useStore();
-    const { cash, balance, settings } = state;
+    const { cash, settings } = state;
     const cur = settings.currency;
 
     const [fundAmt, setFundAmt] = useState('');
@@ -194,7 +194,7 @@ export default function GoalCard({ goal, compact = false }) {
                         placeholder="Amount"
                         value={fundAmt}
                         onChange={e => setFundAmt(e.target.value)}
-                        max={Math.min(remaining, cash + balance)}
+                        max={Math.min(remaining, cash)}
                         autoFocus
                     />
                     <button className="btn btn-sm btn-primary" type="submit">Add</button>
