@@ -1,7 +1,15 @@
 import { describe, it, expect } from 'vitest';
-import { calculateBufferTarget, monthlyEssentials } from './storeUtils';
+import { calculateBufferTarget, monthlyEssentials, formatTargetDate } from './storeUtils';
 
 describe('storeUtils', () => {
+    describe('formatTargetDate', () => {
+        it('formats YYYY-MM to short month and year', () => {
+            expect(formatTargetDate('2025-06')).toMatch(/Jun 2025/i);
+        });
+        it('returns empty string for empty input', () => {
+            expect(formatTargetDate('')).toBe('');
+        });
+    });
     describe('monthlyEssentials', () => {
         it('calculates correctly with budget and recurring targets', () => {
             const state = {

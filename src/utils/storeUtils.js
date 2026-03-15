@@ -37,3 +37,9 @@ export function getMonthlySaving(goal) {
   const installments = monthsDiff + 1;
   return { needed: Math.ceil((goal.target - goal.saved) / installments), months: installments, status: 'active' };
 }
+export function formatTargetDate(dateStr) {
+  if (!dateStr) return '';
+  const [year, month] = dateStr.split('-');
+  const date = new Date(parseInt(year, 10), parseInt(month, 10) - 1, 1);
+  return date.toLocaleDateString(undefined, { month: 'short', year: 'numeric' });
+}

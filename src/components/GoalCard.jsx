@@ -1,5 +1,5 @@
 import { useState, useMemo, memo } from 'react';
-import { useStore, getMonthlySaving } from '../store';
+import { useStore, getMonthlySaving, formatTargetDate } from '../store';
 import ProgressBar from './ProgressBar';
 import { calculateProgress } from '../utils/math';
 
@@ -109,7 +109,7 @@ const GoalCard = memo(function GoalCard({ goal, compact = false }) {
                             <div className="list-item-meta" style={{ marginTop: 4 }}>
                                 <span className={`badge ${goal.priority.toLowerCase()}`}>{goal.priority}</span>
                                 <span className={`badge ${goal.category.toLowerCase()}`}>{goal.category}</span>
-                                {goal.targetDate && <span className="badge date">📅 {goal.targetDate}</span>}
+                                {goal.targetDate && <span className="badge date">📅 {formatTargetDate(goal.targetDate)}</span>}
                                 {goal.isRecurring && <span className="badge essential">Monthly: {goal.monthlyCost} {cur}</span>}
                             </div>
                         </div>

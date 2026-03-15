@@ -256,8 +256,27 @@ export function rootReducer(state, action) {
 
     const bufAfter = next.goals.find(g => g.isBuffer);
     const maxMonths = next.bufferMaxMonths || 12;
+    const essentials = monthlyEssentials(next);
+    
+    // Level Up logic
     if (bufAfter && bufAfter.target > 0 && bufAfter.saved >= bufAfter.target && (next.safetyMonths || 3) < maxMonths && !next.bufferLeveledUp) {
       next.bufferLeveledUp = true;
+    }
+
+    // Dynamic Buffer FIX: Level Down logic
+    // If savings drop below the current milestone minus some buffer (e.g. 90% of the previous month's target),
+    // we should consider dropping the current safetyMonths so the UI goal is realistic.
+    // Actually, just checking if it's below the PREVIOUS milestone target is enough.
+    const currentMonths = next.safetyMonths || 3;
+    if (bufAfter && currentMonths > 1) {
+       const prevMilestoneTarget = (currentMonths - 1) * essentials;
+       // If we have less than the previous milestone, we MUST drop down.
+       if (bufAfter.saved < prevMilestoneTarget) {
+         next.safetyMonths = Math.max(1, Math.floor(bufAfter.saved / essentials) + 1);
+         next.bufferLeveledUp = false;
+         // Recalculate target for the new safetyMonths
+         bufAfter.target = next.safetyMonths * essentials;
+       }
     }
   }
   return next || base;
