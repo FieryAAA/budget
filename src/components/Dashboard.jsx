@@ -24,7 +24,8 @@ export default function Dashboard({ onTabChange }) {
     // The "Needs" is just a Target for the CURRENT month.
     const available = bufferGoal ? bufferGoal.saved : 0;
     const spentThisMonth = monthly.spent || 0;
-    const remainingBudget = Math.min(available, Math.max(0, monthly.budget - spentThisMonth));
+    // Survival Budget Left should include active recurring expenses (essentials)
+    const remainingBudget = Math.min(available, Math.max(0, essentials - spentThisMonth));
 
     const topGoals = goals
         .filter(g => !g.isBuffer && g.saved < g.target)
@@ -88,12 +89,12 @@ export default function Dashboard({ onTabChange }) {
 
                 <div style={{ marginBottom: 15 }}>
                     <div className="flex-between" style={{ fontSize: '0.72rem', opacity: 0.6, marginBottom: 4 }}>
-                        <span>Survival Budget Left</span>
-                        <span>{remainingBudget} / {monthly.budget} {cur}</span>
+                        <span>Monthly Budget Left</span>
+                        <span>{remainingBudget} / {essentials} {cur}</span>
                     </div>
                     <ProgressBar
                         value={remainingBudget}
-                        max={monthly.budget}
+                        max={essentials}
                         color={remainingBudget < 20 ? 'red' : remainingBudget < 100 ? 'yellow' : 'green'}
                     />
                 </div>
@@ -217,11 +218,11 @@ export default function Dashboard({ onTabChange }) {
                 <div className="card mt-24" style={{ background: 'rgba(59,130,246,0.05)', border: '1px dashed rgba(59,130,246,0.3)' }}>
                     <div className="card-title" style={{ fontSize: '0.8rem', opacity: 0.7 }}>Net Goal Progress</div>
 
-                    {/* New Metric: Total Put Aside (Total Allocated minus Buffer) */}
+                    {/* New Metric: Total Put Aside (Total Allocated minus Survival Buffer) */}
                     <div className="flex-between mb-8">
-                        <div style={{ fontSize: '0.85rem' }}>Total Put Aside (Goals)</div>
+                        <div style={{ fontSize: '0.85rem' }}>Total Put Aside (Goals + Progress)</div>
                         <strong className="text-blue">
-                            {Math.max(0, totalAllocated - (bufferGoal?.saved || 0)).toLocaleString()} {cur}
+                            {Math.max(0, totalAllocated - Math.min(bufferGoal?.saved || 0, Math.max(0, safetyMonths - 1) * essentials)).toLocaleString()} {cur}
                         </strong>
                     </div>
 

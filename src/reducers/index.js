@@ -14,9 +14,16 @@ export function rootReducer(state, action) {
 
     case 'ADD_GOAL': {
       const name = action.goal.name ? DOMPurify.sanitize(action.goal.name) : 'Unnamed';
-      next = { ...base, goals: [...base.goals, { id: uid(), saved: 0, isBuffer: false, isRecurring: false, monthlyCost: 0, ...action.goal, name }] };
+      next = { ...base, goals: [...base.goals, { id: uid(), saved: 0, isBuffer: false, isRecurring: false, monthlyCost: 0, activeThisMonth: true, ...action.goal, name }] };
       break;
     }
+
+    case 'TOGGLE_RECURRING_ACTIVE':
+      next = {
+        ...base,
+        goals: base.goals.map(g => g.id === action.id ? { ...g, activeThisMonth: !g.activeThisMonth } : g)
+      };
+      break;
 
     case 'EDIT_GOAL': {
       const updates = { ...action.updates };
@@ -241,7 +248,7 @@ export function rootReducer(state, action) {
     case 'RESET_MONTHLY':
       next = {
         ...base,
-        goals: base.goals.map(g => g.isRecurring ? { ...g, saved: 0 } : g),
+        goals: base.goals.map(g => g.isRecurring ? { ...g, saved: 0, activeThisMonth: true } : g),
         monthly: { ...base.monthly, spent: 0, expenses: [], resetDate: thisMonth },
       };
       break;

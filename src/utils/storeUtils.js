@@ -4,7 +4,7 @@ export function uid() { return (++_idCounter).toString(36); }
 export function calculateBufferTarget(state) {
   const needs = state.monthly?.budget || 200;
   const recurring = (state.goals || [])
-    .filter(g => g.isRecurring)
+    .filter(g => g.isRecurring && g.activeThisMonth !== false)
     .reduce((s, g) => s + (g.monthlyCost || 0), 0);
   return (needs + recurring) * (state.safetyMonths || 3);
 }
@@ -12,7 +12,7 @@ export function calculateBufferTarget(state) {
 export function monthlyEssentials(state) {
   const needs = state.monthly?.budget || 200;
   const recurring = (state.goals || [])
-    .filter(g => g.isRecurring)
+    .filter(g => g.isRecurring && g.activeThisMonth !== false)
     .reduce((s, g) => s + (g.monthlyCost || 0), 0);
   return needs + recurring;
 }

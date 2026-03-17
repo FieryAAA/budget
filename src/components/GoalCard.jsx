@@ -110,7 +110,19 @@ const GoalCard = memo(function GoalCard({ goal, compact = false }) {
                                 <span className={`badge ${goal.priority.toLowerCase()}`}>{goal.priority}</span>
                                 <span className={`badge ${goal.category.toLowerCase()}`}>{goal.category}</span>
                                 {goal.targetDate && <span className="badge date">📅 {formatTargetDate(goal.targetDate)}</span>}
-                                {goal.isRecurring && <span className="badge essential">Monthly: {goal.monthlyCost} {cur}</span>}
+                                {goal.isRecurring && (
+                                    <span className="badge essential" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, opacity: goal.activeThisMonth === false ? 0.5 : 1 }}>
+                                        <input
+                                            type="checkbox"
+                                            checked={goal.activeThisMonth !== false}
+                                            onChange={() => dispatch({ type: 'TOGGLE_RECURRING_ACTIVE', id: goal.id })}
+                                            aria-label="Active this month"
+                                            style={{ margin: 0, width: 12, height: 12 }}
+                                        />
+                                        Monthly: {goal.monthlyCost} {cur}
+                                        {goal.activeThisMonth === false && <span style={{ fontSize: '0.6rem', color: 'var(--red)', fontWeight: 800 }}>SKIPPED</span>}
+                                    </span>
+                                )}
                             </div>
                         </div>
                         <div style={{ textAlign: 'right' }}>
