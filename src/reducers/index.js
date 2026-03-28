@@ -118,7 +118,9 @@ export function rootReducer(state, action) {
           const goal = nextGoals.find(g => g.id === goalId);
           if (goal) goal.saved = Math.max(0, goal.saved - amt);
         }
-        nextCash = Math.max(0, nextCash - (inc.cashAllocated || 0));
+        const allocatedToGoals = Object.values(inc.allocations).reduce((s, v) => s + v, 0);
+        const cashPortion = inc.cashAllocated ?? Math.max(0, inc.amount - allocatedToGoals);
+        nextCash = Math.max(0, nextCash - cashPortion);
       } else {
         nextCash = Math.max(0, nextCash - inc.amount);
       }
