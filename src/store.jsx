@@ -64,17 +64,26 @@ function loadState() {
           if (!localStorage.getItem(backupKey)) localStorage.setItem(backupKey, raw);
         } catch { }
 
-        const now = new Date().toISOString();
+        const nowDate = new Date();
+        const now = nowDate.toISOString();
+        const daysInMonth = (y, m) => new Date(y, m + 1, 0).getDate();
         const migrated = [];
         s.goals = s.goals.filter(g => {
           if (g.isRecurring && !g.isBuffer) {
+            const cutDay = 1;
+            let year = nowDate.getFullYear();
+            let month = nowDate.getMonth() - 1;
+            if (month < 0) { month = 11; year -= 1; }
+            const day = Math.min(cutDay, daysInMonth(year, month));
+            const lastApplied = new Date(year, month, day).toISOString();
+
             migrated.push({
               id: g.id, name: g.name,
               amount: g.monthlyCost || g.target,
               period: 'monthly',
-              cut_day: 1,
+              cut_day: cutDay,
               start_date: now,
-              last_applied_date: now, // no retroactive drain
+              last_applied_date: lastApplied, // can now catch current month
               active: g.activeThisMonth !== false,
             });
             return false;
@@ -101,21 +110,28 @@ function loadState() {
         const daysInMonth = (y, m) => new Date(y, m + 1, 0).getDate();
         s.recurringExpenses = s.recurringExpenses.map(e => {
           if (!e.start_date || !e.last_applied_date) return e;
-          // Detect the buggy case: both fields are the same ISO string
-          if (e.last_applied_date !== e.start_date) return e;
-
+          
           const start = new Date(e.start_date);
+          const last = new Date(e.last_applied_date);
+          
+          // Detect if it was broken: either exact match (old bug) OR
+          // same month/year as creation but applied after the cut_day.
+          const isSameMonthOfCreation = last.getFullYear() === start.getFullYear() && last.getMonth() === start.getMonth();
+          const cutDay = e.cut_day || 1;
+          const lastDayInMonth = daysInMonth(last.getFullYear(), last.getMonth());
+          const cutDateVal = Math.min(cutDay, lastDayInMonth);
+          const hasBrokenApplication = isSameMonthOfCreation && last.getDate() >= cutDateVal;
+          const isExactMatch = e.last_applied_date === e.start_date;
+
+          if (!isExactMatch && !hasBrokenApplication) return e;
 
           if (e.period === 'monthly') {
-            // Set last_applied_date to cut_day of the month BEFORE start_date.
-            // applyDueExpenses will then fire for every month from start_date onward.
             let year = start.getFullYear();
             let month = start.getMonth() - 1;
             if (month < 0) { month = 11; year -= 1; }
             const day = Math.min(e.cut_day || 1, daysInMonth(year, month));
             return { ...e, last_applied_date: new Date(year, month, day).toISOString() };
           } else if (e.period === 'weekly') {
-            // One week before start so the first cut fires 7 days after creation
             return { ...e, last_applied_date: new Date(start.getTime() - 7 * 86_400_000).toISOString() };
           }
           return e;
