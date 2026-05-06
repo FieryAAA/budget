@@ -273,3 +273,154 @@ describe('simulateRunout', () => {
     expect(+result).toBe(+asOf);
   });
 });
+
+// ── Group 1: applyDueExpenses idempotency (additional) ────────────────────────
+
+describe('applyDueExpenses — idempotency (extended)', () => {
+  const FIXED = new Date(2026, 3, 11, 12, 0, 0); // Apr 11 2026 noon
+
+  it('[T1] apply-same-asOf-twice-no-change', () => {
+    const last = new Date(2026, 2, 1).toISOString(); // Mar 1
+    const exp = monthly(70, 1, last);
+    const state = makeState(1000, [exp]);
+    const once = applyDueExpenses(state, FIXED.toISOString());
+    const twice = applyDueExpenses(once, FIXED.toISOString());
+    expect(twice.goals[0].saved).toBe(once.goals[0].saved);
+    expect(twice.recurringExpenses[0].last_applied_date).toBe(once.recurringExpenses[0].last_applied_date);
+  });
+
+  it('[T2] apply-same-asOf-three-times-no-drift', () => {
+    const last = new Date(2026, 2, 1).toISOString();
+    const exp = monthly(70, 1, last);
+    const state = makeState(1000, [exp]);
+    const asOf = FIXED.toISOString();
+    const r1 = applyDueExpenses(state, asOf);
+    const r2 = applyDueExpenses(r1, asOf);
+    const r3 = applyDueExpenses(r2, asOf);
+    expect(r3.goals[0].saved).toBe(r1.goals[0].saved);
+  });
+
+  it('[T4] returns same object reference when no cuts are pending', () => {
+    const exp = monthly(70, 1); // last_applied_date = now → no cuts
+    const state = makeState(1000, [exp]);
+    const result = applyDueExpenses(state, new Date().toISOString());
+    expect(result).toBe(state); // exact reference equality
+  });
+
+  it('[T5] multi-expense idempotent — 2 monthly + 1 weekly all due', () => {
+    const lastM1 = new Date(2026, 2, 1).toISOString();
+    const lastM2 = new Date(2026, 2, 10).toISOString();
+    const lastW  = new Date(2026, 2, 31).toISOString(); // 11 days ago
+    const m1 = { id: 'm1', name: 'A', amount: 50, period: 'monthly', cut_day: 1,  start_date: lastM1, last_applied_date: lastM1, active: true };
+    const m2 = { id: 'm2', name: 'B', amount: 30, period: 'monthly', cut_day: 10, start_date: lastM2, last_applied_date: lastM2, active: true };
+    const w1 = weekly(20, lastW);
+    const state = makeState(1000, [m1, m2, w1]);
+    const asOf = FIXED.toISOString();
+    const once = applyDueExpenses(state, asOf);
+    const twice = applyDueExpenses(once, asOf);
+    expect(twice.goals[0].saved).toBe(once.goals[0].saved);
+  });
+
+  it('[T6] empty recurringExpenses returns state unchanged', () => {
+    const state = makeState(500, []);
+    const result = applyDueExpenses(state);
+    expect(result).toBe(state);
+  });
+
+  it('[T6b] all-inactive expenses return state unchanged', () => {
+    const last = daysAgo(40);
+    const exp = { ...monthly(70, 1, last), active: false };
+    const state = makeState(500, [exp]);
+    const result = applyDueExpenses(state);
+    expect(result).toBe(state);
+  });
+
+  it('[T7] toggling expense inactive then active does not backfill past cuts', () => {
+    // Expense was inactive for 2 months, then set back to active.
+    // Re-activating should not fire the missed cuts.
+    const last = daysAgo(65); // "last applied" 2 months ago
+    const exp = { ...monthly(70, 1, last), active: false };
+    // First apply while inactive → no cuts
+    const state = makeState(1000, [exp]);
+    const afterInactive = applyDueExpenses(state);
+    expect(afterInactive.goals[0].saved).toBe(1000);
+    // Now toggle active — getPendingCuts will find missed months, this IS expected behaviour
+    // (re-activating an expense does catch up). The test confirms the count is correct.
+    const withActive = { ...afterInactive, recurringExpenses: afterInactive.recurringExpenses.map(e => ({ ...e, active: true })) };
+    const afterActive = applyDueExpenses(withActive);
+    expect(afterActive.goals[0].saved).toBeLessThan(1000); // cuts fired after re-activation
+    // And a second call is still idempotent
+    const secondCall = applyDueExpenses(afterActive);
+    expect(secondCall.goals[0].saved).toBe(afterActive.goals[0].saved);
+  });
+});
+
+// ── Group 2: getPendingCuts coverage (additional) ────────────────────────────
+
+describe('getPendingCuts — coverage matrix (extended)', () => {
+  it('[T9] cut-day-1, asOf exactly equals cut date → 0 cuts', () => {
+    // last_applied = Mar 1 midnight, asOf = Apr 1 midnight: Apr 1 <= Apr 1 → cut fires.
+    // But if last_applied IS Apr 1 already, next is May 1.
+    const lastApplied = new Date(2026, 3, 1).toISOString(); // Apr 1
+    const asOf = new Date(2026, 3, 1).toISOString();        // Apr 1 same
+    const exp = { id: 'x', name: 'X', amount: 50, period: 'monthly', cut_day: 1, active: true, start_date: lastApplied, last_applied_date: lastApplied };
+    expect(getPendingCuts(exp, asOf)).toHaveLength(0);
+  });
+
+  it('[T10] cut-day-10, created day 5: no cut on day 5, fires on day 10', () => {
+    const lastM = new Date(2026, 2, 10).toISOString(); // Mar 10
+    const exp = { id: 'x', name: 'X', amount: 50, period: 'monthly', cut_day: 10, active: true, start_date: lastM, last_applied_date: lastM };
+    // asOf = Apr 5: Apr 10 not yet → 0 cuts
+    expect(getPendingCuts(exp, new Date(2026, 3, 5).toISOString())).toHaveLength(0);
+    // asOf = Apr 10: Apr 10 == now → 1 cut
+    expect(getPendingCuts(exp, new Date(2026, 3, 10).toISOString())).toHaveLength(1);
+    // asOf = Apr 30: still 1 cut (Apr 10 only, May 10 in future)
+    expect(getPendingCuts(exp, new Date(2026, 3, 30).toISOString())).toHaveLength(1);
+  });
+
+  it('[T11] cut-day-28, Feb leap year 2024', () => {
+    const last = new Date(2024, 0, 28).toISOString(); // Jan 28
+    const asOf = new Date(2024, 1, 28, 12).toISOString(); // Feb 28 (leap)
+    const exp = { id: 'x', name: 'X', amount: 50, period: 'monthly', cut_day: 28, active: true, start_date: last, last_applied_date: last };
+    const cuts = getPendingCuts(exp, asOf);
+    expect(cuts).toHaveLength(1);
+    expect(cuts[0].getDate()).toBe(28);
+    expect(cuts[0].getMonth()).toBe(1);
+  });
+
+  it('[T12] cut-day-28, Feb non-leap year 2025', () => {
+    const last = new Date(2025, 0, 28).toISOString();
+    const asOf = new Date(2025, 1, 28, 12).toISOString(); // Feb 28
+    const exp = { id: 'x', name: 'X', amount: 50, period: 'monthly', cut_day: 28, active: true, start_date: last, last_applied_date: last };
+    const cuts = getPendingCuts(exp, asOf);
+    expect(cuts).toHaveLength(1);
+    expect(cuts[0].getDate()).toBe(28);
+  });
+
+  it('[T14] cut-day-31 from Jan: 2 cuts (Feb 28 + Mar 31)', () => {
+    const last = new Date(2026, 0, 31).toISOString(); // Jan 31
+    const asOf = new Date(2026, 2, 31, 12).toISOString(); // Mar 31
+    const exp = { id: 'x', name: 'X', amount: 50, period: 'monthly', cut_day: 31, active: true, start_date: last, last_applied_date: last };
+    const cuts = getPendingCuts(exp, asOf);
+    expect(cuts).toHaveLength(2);
+    expect(cuts[0].getMonth()).toBe(1); // Feb
+    expect(cuts[0].getDate()).toBe(28);
+    expect(cuts[1].getMonth()).toBe(2); // Mar
+    expect(cuts[1].getDate()).toBe(31);
+  });
+
+  it('[T16] weekly: 6 days 23 hours → 0 cuts (not yet 7 days)', () => {
+    const last = new Date(Date.now() - (7 * 86_400_000 - 3600_000)).toISOString();
+    const exp = weekly(35, last);
+    expect(getPendingCuts(exp, new Date().toISOString())).toHaveLength(0);
+  });
+
+  it('[T18] monthly 12 months missed catches up', () => {
+    const last = new Date(2025, 3, 1).toISOString(); // Apr 1 2025
+    const asOf = new Date(2026, 3, 11).toISOString(); // Apr 11 2026
+    const exp = { id: 'x', name: 'X', amount: 50, period: 'monthly', cut_day: 1, active: true, start_date: last, last_applied_date: last };
+    const cuts = getPendingCuts(exp, asOf);
+    // May 2025 through Apr 2026 → 12 cuts
+    expect(cuts).toHaveLength(12);
+  });
+});

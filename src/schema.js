@@ -52,6 +52,7 @@ export const stateSchema = z.object({
   safetyMonths: z.number().min(0).optional(),
   bufferMaxMonths: z.number().min(0).optional(),
   bufferLeveledUp: z.boolean().optional(),
+  schemaVersion: z.number().int().min(0).optional(),
   goals: z.array(goalSchema),
   recurringExpenses: z.array(recurringExpenseSchema).optional(),
   incomeEvents: z.array(incomeEventSchema).optional(),
@@ -59,6 +60,9 @@ export const stateSchema = z.object({
     currency: z.string()
   }).passthrough()
 }).passthrough();
+
+/** Increment this whenever a new migration is added. */
+export const CURRENT_SCHEMA_VERSION = 6;
 
 export function validateState(data) {
   return stateSchema.parse(data);
