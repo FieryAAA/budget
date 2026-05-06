@@ -122,9 +122,7 @@ export default function MonthlySpending() {
                             </div>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                                 <span style={{ fontWeight: 700 }}>{exp.amount.toLocaleString()} {cur}</span>
-                                {!exp.isRecurring && (
-                                    <button className="btn btn-sm btn-ghost" aria-label="Delete Expense" onClick={() => dispatch({ type: 'DELETE_EXPENSE', id: exp.id })} style={{ color: 'var(--red)', padding: '2px 6px' }}>✕</button>
-                                )}
+                                <button className="btn btn-sm btn-ghost" aria-label="Delete Expense" onClick={() => dispatch({ type: 'DELETE_EXPENSE', id: exp.id })} style={{ color: 'var(--red)', padding: '2px 6px' }}>✕</button>
                             </div>
                         </div>
                     ))
