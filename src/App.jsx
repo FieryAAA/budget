@@ -4,34 +4,36 @@ import Dashboard from './components/Dashboard';
 import MonthlySpending from './components/MonthlySpending';
 import GoalsList from './components/GoalsList';
 import IncomeEvents from './components/IncomeEvents';
+import {
+    IconHome, IconWallet, IconTarget, IconBanknote,
+    IconUpload, IconDownload, IconAlertTriangle,
+    IconChevronDown, IconX, IconClock,
+} from './components/icons';
 
 const TABS = [
-    { id: 'dashboard', label: 'Home', icon: '📊' },
-    { id: 'spending', label: 'Spend', icon: '💳' },
-    { id: 'goals', label: 'Goals', icon: '🎯' },
-    { id: 'income', label: 'Income', icon: '💵' },
+    { id: 'dashboard', label: 'Home',   Icon: IconHome },
+    { id: 'spending',  label: 'Spend',  Icon: IconWallet },
+    { id: 'goals',     label: 'Goals',  Icon: IconTarget },
+    { id: 'income',    label: 'Income', Icon: IconBanknote },
 ];
 
-// ─── Backup export / import buttons ───────────────────────────────────────────
 function BackupButtons() {
     const fileInputRef = useRef(null);
     return (
         <>
             <button
                 className="btn btn-sm btn-ghost"
-                style={{ fontSize: '0.7rem' }}
                 onClick={exportToFile}
                 title="Download a JSON backup of all your data"
             >
-                📤 Export
+                <IconDownload /> Export
             </button>
             <button
                 className="btn btn-sm btn-ghost"
-                style={{ fontSize: '0.7rem' }}
                 onClick={() => fileInputRef.current?.click()}
                 title="Restore data from a previously exported JSON backup"
             >
-                📥 Import
+                <IconUpload /> Import
             </button>
             <input
                 ref={fileInputRef}
@@ -48,31 +50,38 @@ function BackupButtons() {
     );
 }
 
-// ─── Snapshot restore dropdown ────────────────────────────────────────────────
 function SnapshotDropdown() {
     const [open, setOpen] = useState(false);
+    const ref = useRef(null);
     const snapshots = listSnapshots();
+
+    useEffect(() => {
+        if (!open) return;
+        const onClick = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+        const onEsc = (e) => { if (e.key === 'Escape') setOpen(false); };
+        document.addEventListener('mousedown', onClick);
+        document.addEventListener('keydown', onEsc);
+        return () => {
+            document.removeEventListener('mousedown', onClick);
+            document.removeEventListener('keydown', onEsc);
+        };
+    }, [open]);
 
     if (snapshots.length === 0) return null;
 
     return (
-        <div style={{ position: 'relative', display: 'inline-block' }}>
+        <div className="dropdown" ref={ref}>
             <button
-                className="btn btn-sm"
-                style={{ background: 'var(--yellow, #f59e0b)', color: '#000', fontSize: '0.75rem' }}
+                className="btn btn-sm btn-warning"
                 onClick={() => setOpen(o => !o)}
+                aria-haspopup="menu"
+                aria-expanded={open}
             >
-                Recover Data ▾
+                <IconClock /> Recover <IconChevronDown />
             </button>
             {open && (
-                <div style={{
-                    position: 'absolute', right: 0, top: '110%', zIndex: 100,
-                    background: 'var(--surface, #1e1e2e)', border: '1px solid var(--border, #444)',
-                    borderRadius: 8, minWidth: 260, padding: '8px 0', boxShadow: '0 4px 16px rgba(0,0,0,.4)'
-                }}>
-                    <div style={{ padding: '4px 12px 8px', fontSize: '0.7rem', color: 'var(--muted, #888)', borderBottom: '1px solid var(--border, #444)', marginBottom: 4 }}>
-                        Select a snapshot to restore:
-                    </div>
+                <div className="dropdown-menu" role="menu">
+                    <div className="dropdown-menu-header">Restore a snapshot</div>
                     {snapshots.map(key => {
                         const label = key
                             .replace('finplan_v6_predmigration_', 'Pre-migration ')
@@ -81,11 +90,8 @@ function SnapshotDropdown() {
                         return (
                             <button
                                 key={key}
-                                style={{
-                                    display: 'block', width: '100%', textAlign: 'left',
-                                    background: 'none', border: 'none', color: 'inherit',
-                                    padding: '6px 12px', fontSize: '0.75rem', cursor: 'pointer',
-                                }}
+                                role="menuitem"
+                                className="dropdown-item"
                                 onClick={() => {
                                     setOpen(false);
                                     if (window.confirm(`Restore snapshot "${label}"?\n\nThis will overwrite your current data. Make sure you want to do this.`)) {
@@ -103,27 +109,26 @@ function SnapshotDropdown() {
     );
 }
 
-// ─── Load-error banner ────────────────────────────────────────────────────────
 function LoadErrorBanner({ error }) {
     const [dismissed, setDismissed] = useState(false);
     if (!error || dismissed) return null;
 
     return (
-        <div style={{
-            background: 'var(--red, #ef4444)', color: '#fff',
-            padding: '8px 16px', fontSize: '0.8rem', display: 'flex',
-            alignItems: 'center', gap: 8, flexWrap: 'wrap',
-        }}>
-            <strong>⚠ Data load failed</strong>
-            <span style={{ flex: 1 }}>
-                Your saved data could not be loaded ({error.message}). Your original data is still in storage — use Recover Data to restore it.
+        <div className="load-error-banner" role="alert">
+            <IconAlertTriangle />
+            <span>
+                <strong>Data load failed.</strong>{' '}
+                Your saved data could not be loaded ({error.message}). Original data is still in storage — use Recover to restore it.
             </span>
             <SnapshotDropdown />
             <button
-                style={{ background: 'none', border: 'none', color: '#fff', cursor: 'pointer', fontSize: '1rem', padding: 0 }}
+                className="btn btn-icon btn-ghost"
                 onClick={() => setDismissed(true)}
                 aria-label="Dismiss"
-            >✕</button>
+                style={{ color: '#fff' }}
+            >
+                <IconX />
+            </button>
         </div>
     );
 }
@@ -132,8 +137,6 @@ function AppContent() {
     const [tab, setTab] = useState('dashboard');
     const { dispatch, loadError } = useStore();
 
-    // Re-apply cashflow whenever the user returns to the app so the balance
-    // stays current even after leaving the tab/window for a while.
     useEffect(() => {
         const onVisible = () => {
             if (document.visibilityState === 'visible') {
@@ -149,50 +152,64 @@ function AppContent() {
         };
     }, [dispatch]);
 
+    function handleResetAll() {
+        if (window.confirm('Erase all goals, income, and history? This cannot be undone.')) {
+            localStorage.removeItem('finplan_v6');
+            window.location.reload();
+        }
+    }
+
     return (
         <div className="app">
-            <LoadErrorBanner error={loadError} />
+            <a href="#main" className="skip-link">Skip to content</a>
 
-            <nav className="tab-bar">
-                {TABS.map(t => (
-                    <button
-                        key={t.id}
-                        className={`tab-btn ${tab === t.id ? 'active' : ''}`}
-                        onClick={() => setTab(t.id)}
-                    >
-                        <span className="tab-icon">{t.icon}</span>
-                        {t.label}
-                    </button>
-                ))}
+            <nav className="tab-bar" aria-label="Primary navigation">
+                {TABS.map(t => {
+                    const isActive = tab === t.id;
+                    return (
+                        <button
+                            key={t.id}
+                            className={`tab-btn ${isActive ? 'active' : ''}`}
+                            onClick={() => setTab(t.id)}
+                            aria-current={isActive ? 'page' : undefined}
+                        >
+                            <t.Icon size={22} className="tab-icon" />
+                            {t.label}
+                        </button>
+                    );
+                })}
             </nav>
 
             <div className="app-content-area">
+                <LoadErrorBanner error={loadError} />
+
                 <header className="app-header">
-                    <h1>FinPlan</h1>
-                    <div className="subtitle">Goal-Based Saving Planner</div>
-                    <div style={{ display: 'flex', gap: 8, justifyContent: 'center', marginTop: 12, flexWrap: 'wrap' }}>
+                    <div className="app-brand">
+                        <div className="app-brand-mark">
+                            Fin<span className="accent">Plan</span>
+                        </div>
+                        <div className="app-tagline">Goal-Based Planner</div>
+                    </div>
+
+                    <div className="app-toolbar">
                         <SnapshotDropdown />
                         <BackupButtons />
+                        <span className="flex-auto" />
                         <button
                             className="btn btn-sm btn-ghost"
-                            style={{ color: 'var(--red)', fontSize: '0.7rem' }}
-                            onClick={() => {
-                                if (window.confirm("Are you sure you want to erase all goals, income, and history? This cannot be undone.")) {
-                                    localStorage.removeItem('finplan_v6');
-                                    window.location.reload();
-                                }
-                            }}
+                            onClick={handleResetAll}
+                            style={{ color: 'var(--red)' }}
                         >
-                            ⚠️ Reset All App Data
+                            <IconAlertTriangle /> Reset
                         </button>
                     </div>
                 </header>
 
-                <main style={{ paddingTop: 8 }}>
+                <main id="main">
                     {tab === 'dashboard' && <Dashboard onTabChange={setTab} />}
-                    {tab === 'spending' && <MonthlySpending />}
-                    {tab === 'goals' && <GoalsList />}
-                    {tab === 'income' && <IncomeEvents />}
+                    {tab === 'spending'  && <MonthlySpending />}
+                    {tab === 'goals'     && <GoalsList />}
+                    {tab === 'income'    && <IncomeEvents />}
                 </main>
             </div>
         </div>

@@ -1,11 +1,16 @@
 import { useState, useMemo } from 'react';
 import { useStore } from '../store';
 import GoalCard from './GoalCard';
+import {
+    IconTarget, IconArrowsHorizontal, IconPlus, IconX, IconShield,
+    IconRepeat, IconHeart, IconFlame, IconChart, IconCalendar,
+    IconBanknote, IconArrowRight, IconTrash,
+} from './icons';
 
 const SORT_OPTIONS = [
-    { value: 'priority', label: '🔥 Priority' },
-    { value: 'funded', label: '📊 % Funded' },
-    { value: 'deadline', label: '📅 Deadline' },
+    { value: 'priority', label: 'Priority', Icon: IconFlame },
+    { value: 'funded',   label: '% Funded', Icon: IconChart },
+    { value: 'deadline', label: 'Deadline', Icon: IconCalendar },
 ];
 
 const PRIORITY_ORDER = { High: 0, Medium: 1, Low: 2 };
@@ -21,7 +26,6 @@ export default function GoalsList() {
     const [showAddRecurring, setShowAddRecurring] = useState(false);
     const [showMove, setShowMove] = useState(false);
 
-    // ── Saving goal form state ─────────────────────────────────────────────
     const [name, setName] = useState('');
     const [target, setTarget] = useState('');
     const [priority, setPriority] = useState('Medium');
@@ -29,18 +33,15 @@ export default function GoalsList() {
     const [targetDate, setTargetDate] = useState('');
     const [goalType, setGoalType] = useState('saving');
 
-    // ── Recurring expense form state ───────────────────────────────────────
     const [recName, setRecName] = useState('');
     const [recAmount, setRecAmount] = useState('');
     const [recPeriod, setRecPeriod] = useState('monthly');
     const [recCutDay, setRecCutDay] = useState(1);
 
-    // ── Move form state ────────────────────────────────────────────────────
     const [moveFromId, setMoveFromId] = useState('');
     const [moveToId, setMoveToId] = useState('');
     const [moveAmt, setMoveAmt] = useState('');
 
-    // ── Sections ───────────────────────────────────────────────────────────
     const bufferGoal = goals.find(g => g.isBuffer);
     const savingGoals = useMemo(() => {
         const list = goals.filter(g => !g.isBuffer && g.type !== 'wishlist');
@@ -65,7 +66,6 @@ export default function GoalsList() {
 
     const totalAllocated = useMemo(() => goals.reduce((s, g) => s + g.saved, 0), [goals]);
 
-    // ── Handlers ───────────────────────────────────────────────────────────
     function handleAddSaving(e) {
         e.preventDefault();
         if (!name.trim() || !target) return;
@@ -111,147 +111,171 @@ export default function GoalsList() {
         setShowMove(false);
     }
 
-
     return (
         <div>
-            {/* ── Header ──────────────────────────────────────────────────── */}
-            <div className="flex-between mb-12">
-                <div className="section-title" style={{ margin: 0 }}>🎯 Goals</div>
-                <div style={{ display: 'flex', gap: 6 }}>
-                    <button className="btn btn-sm btn-ghost" onClick={() => { setShowMove(!showMove); setShowAddSaving(false); setShowAddRecurring(false); }}>
-                        ↔️ Move
+            <div className="flex-between mb-4">
+                <div className="section-title" style={{ margin: 0 }}><IconTarget /> Goals</div>
+                <div className="row-tight">
+                    <button
+                        className="btn btn-sm btn-ghost"
+                        onClick={() => { setShowMove(s => !s); setShowAddSaving(false); setShowAddRecurring(false); }}
+                    >
+                        <IconArrowsHorizontal /> Move
                     </button>
-                    <button className="btn btn-sm btn-primary" onClick={() => { setShowAddSaving(!showAddSaving); setShowMove(false); setShowAddRecurring(false); }}>
-                        {showAddSaving ? '✕' : '+ Goal'}
+                    <button
+                        className="btn btn-sm btn-primary"
+                        onClick={() => { setShowAddSaving(s => !s); setShowMove(false); setShowAddRecurring(false); }}
+                    >
+                        {showAddSaving ? <><IconX /> Close</> : <><IconPlus /> Goal</>}
                     </button>
                 </div>
             </div>
 
             {/* Summary */}
-            <div className="mini-grid mb-12">
+            <div className="mini-grid two mb-4">
                 <div className="mini-card">
                     <div className="label">Cash</div>
-                    <div className="value text-green" style={{ fontSize: '1.1rem' }}>{cash.toLocaleString()} {cur}</div>
+                    <div className="value text-green">{cash.toLocaleString()} {cur}</div>
                 </div>
                 <div className="mini-card">
                     <div className="label">Allocated</div>
-                    <div className="value text-blue" style={{ fontSize: '1.1rem' }}>{totalAllocated.toLocaleString()} {cur}</div>
+                    <div className="value text-blue">{totalAllocated.toLocaleString()} {cur}</div>
                 </div>
             </div>
 
-            {/* ── Move Money Modal ─────────────────────────────────────────── */}
+            {/* Move money form */}
             {showMove && (
-                <div className="card" style={{ borderColor: 'rgba(59,130,246,0.3)' }}>
-                    <div className="card-title"><span className="icon">↔️</span> Move Money Between Goals</div>
+                <section className="card highlight">
+                    <div className="card-title"><IconArrowsHorizontal /> Move Money Between Goals</div>
                     <form onSubmit={handleMove}>
-                        <div style={{ marginBottom: 8 }}>
-                            <label className="text-muted" style={{ fontSize: '0.72rem', display: 'block', marginBottom: 4 }}>From</label>
-                            <select value={moveFromId} onChange={e => setMoveFromId(e.target.value)} style={{ width: '100%' }}>
-                                <option value="">Select source goal...</option>
-                                {goalsWithSaved.map(g => (
-                                    <option key={g.id} value={g.id}>{g.name} ({g.saved.toLocaleString()} {cur} saved)</option>
-                                ))}
-                            </select>
-                        </div>
-                        <div style={{ marginBottom: 8 }}>
-                            <label className="text-muted" style={{ fontSize: '0.72rem', display: 'block', marginBottom: 4 }}>To</label>
-                            <select value={moveToId} onChange={e => setMoveToId(e.target.value)} style={{ width: '100%' }}>
-                                <option value="">Select target goal...</option>
-                                {goals.filter(g => g.saved < g.target && g.id !== moveFromId).map(g => (
-                                    <option key={g.id} value={g.id}>{g.name} ({(g.target - g.saved).toLocaleString()} {cur} left)</option>
-                                ))}
-                            </select>
-                        </div>
+                        <label className="field-label">From</label>
+                        <select value={moveFromId} onChange={e => setMoveFromId(e.target.value)} style={{ width: '100%' }}>
+                            <option value="">Select source goal…</option>
+                            {goalsWithSaved.map(g => (
+                                <option key={g.id} value={g.id}>{g.name} ({g.saved.toLocaleString()} {cur} saved)</option>
+                            ))}
+                        </select>
+                        <label className="field-label mt-3">To</label>
+                        <select value={moveToId} onChange={e => setMoveToId(e.target.value)} style={{ width: '100%' }}>
+                            <option value="">Select target goal…</option>
+                            {goals.filter(g => g.saved < g.target && g.id !== moveFromId).map(g => (
+                                <option key={g.id} value={g.id}>{g.name} ({(g.target - g.saved).toLocaleString()} {cur} left)</option>
+                            ))}
+                        </select>
                         <div className="input-row">
                             <input type="number" placeholder="Amount" value={moveAmt} onChange={e => setMoveAmt(e.target.value)} min="0" />
-                            <button className="btn btn-blue" type="submit">Move</button>
+                            <button className="btn btn-blue" type="submit">
+                                <IconArrowRight /> Move
+                            </button>
                         </div>
                     </form>
-                </div>
+                </section>
             )}
 
-            {/* ── Add Saving/Wishlist Goal Form ───────────────────────────── */}
+            {/* Add saving/wishlist form */}
             {showAddSaving && (
-                <div className="card">
-                    <div className="card-title">Create New Goal</div>
+                <section className="card">
+                    <div className="card-title"><IconPlus /> Create New Goal</div>
                     <form onSubmit={handleAddSaving}>
-                        <input type="text" placeholder="Goal name" value={name} onChange={e => setName(e.target.value)} style={{ width: '100%', marginBottom: 8 }} />
+                        <input
+                            type="text"
+                            placeholder="Goal name"
+                            value={name}
+                            onChange={e => setName(e.target.value)}
+                            style={{ width: '100%' }}
+                            autoFocus
+                        />
                         <div className="input-row">
-                            <input type="number" placeholder="Target price" value={target} onChange={e => setTarget(e.target.value)} min="0" />
-                            <select value={priority} onChange={e => setPriority(e.target.value)}>
+                            <input
+                                type="number"
+                                placeholder="Target price"
+                                value={target}
+                                onChange={e => setTarget(e.target.value)}
+                                min="0"
+                            />
+                            <select value={priority} onChange={e => setPriority(e.target.value)} aria-label="Priority">
                                 <option value="High">High</option>
                                 <option value="Medium">Medium</option>
                                 <option value="Low">Low</option>
                             </select>
                         </div>
                         <div className="input-row">
-                            <select value={category} onChange={e => setCategory(e.target.value)}>
+                            <select value={category} onChange={e => setCategory(e.target.value)} aria-label="Category">
                                 <option value="Essential">Essential</option>
                                 <option value="Productivity">Productivity</option>
                                 <option value="Comfort">Comfort</option>
                                 <option value="Education">Education</option>
                                 <option value="Luxury">Luxury</option>
                             </select>
-                            <input type="month" value={targetDate} onChange={e => setTargetDate(e.target.value)} placeholder="Target date" />
+                            <input
+                                type="month"
+                                value={targetDate}
+                                onChange={e => setTargetDate(e.target.value)}
+                                aria-label="Target date"
+                            />
                         </div>
-                        {/* Type selector: saving goals affect balance; wishlist items do not */}
-                        <div className="input-row mt-8">
-                            <select value={goalType} onChange={e => setGoalType(e.target.value)} style={{ flex: 1 }}>
-                                <option value="saving">💰 Saving Goal</option>
-                                <option value="wishlist">💭 Wishlist (no balance effect)</option>
+                        <div className="input-row">
+                            <select value={goalType} onChange={e => setGoalType(e.target.value)} aria-label="Goal type" style={{ flex: 1 }}>
+                                <option value="saving">Saving Goal</option>
+                                <option value="wishlist">Wishlist (no balance effect)</option>
                             </select>
                         </div>
-                        <button className="btn btn-primary mt-12" type="submit" style={{ width: '100%' }}>Create Goal</button>
+                        <button className="btn btn-primary mt-4 w-full" type="submit">
+                            <IconPlus /> Create Goal
+                        </button>
                     </form>
-                </div>
+                </section>
             )}
 
-            {/* ── Sort Controls (for saving goals) ────────────────────────── */}
-            <div style={{ display: 'flex', gap: 6, marginBottom: 12 }}>
-                {SORT_OPTIONS.map(opt => (
-                    <button
-                        key={opt.value}
-                        className={`btn btn-sm ${sort === opt.value ? 'btn-primary' : 'btn-ghost'}`}
-                        onClick={() => setSort(opt.value)}
-                        style={{ fontSize: '0.7rem' }}
-                    >
-                        {opt.label}
-                    </button>
-                ))}
+            {/* Sort */}
+            <div className="cluster mb-4">
+                {SORT_OPTIONS.map(opt => {
+                    const isActive = sort === opt.value;
+                    return (
+                        <button
+                            key={opt.value}
+                            className={`btn btn-sm ${isActive ? 'btn-primary' : 'btn-ghost'}`}
+                            onClick={() => setSort(opt.value)}
+                            aria-pressed={isActive}
+                        >
+                            <opt.Icon /> {opt.label}
+                        </button>
+                    );
+                })}
             </div>
 
-            {/* ── SECTION: Safety Buffer ───────────────────────────────────── */}
+            {/* Safety Buffer */}
             {bufferGoal && (
                 <>
-                    <div className="section-title" style={{ fontSize: '0.75rem', opacity: 0.6 }}>🛡️ Safety Buffer</div>
+                    <div className="section-title"><IconShield /> Safety Buffer</div>
                     <div className="goals-grid">
                         <GoalCard key={bufferGoal.id} goal={bufferGoal} />
                     </div>
                 </>
             )}
 
-            {/* ── SECTION: Recurring Expenses ─────────────────────────────── */}
-            <div className="flex-between" style={{ marginTop: 16, marginBottom: 6 }}>
-                <div className="section-title" style={{ fontSize: '0.75rem', opacity: 0.6, margin: 0 }}>🔄 Recurring Expenses</div>
+            {/* Recurring */}
+            <div className="flex-between" style={{ marginTop: 'var(--space-5)', marginBottom: 'var(--space-2)' }}>
+                <div className="section-title" style={{ margin: 0 }}><IconRepeat /> Recurring Expenses</div>
                 <button
                     className="btn btn-sm btn-ghost"
-                    style={{ fontSize: '0.7rem' }}
-                    onClick={() => { setShowAddRecurring(!showAddRecurring); setShowAddSaving(false); }}
+                    onClick={() => { setShowAddRecurring(s => !s); setShowAddSaving(false); }}
                 >
-                    {showAddRecurring ? '✕' : '+ Add'}
+                    {showAddRecurring ? <><IconX /> Close</> : <><IconPlus /> Add</>}
                 </button>
             </div>
 
             {showAddRecurring && (
-                <div className="card" style={{ marginBottom: 8 }}>
-                    <div className="card-title" style={{ fontSize: '0.82rem' }}>New Recurring Expense</div>
+                <section className="card mb-3">
+                    <div className="card-title"><IconRepeat /> New Recurring Expense</div>
                     <form onSubmit={handleAddRecurring}>
                         <input
                             type="text"
                             placeholder="Name (e.g. Netflix)"
                             value={recName}
                             onChange={e => setRecName(e.target.value)}
-                            style={{ width: '100%', marginBottom: 8 }}
+                            style={{ width: '100%' }}
+                            autoFocus
                         />
                         <div className="input-row">
                             <input
@@ -261,79 +285,94 @@ export default function GoalsList() {
                                 onChange={e => setRecAmount(e.target.value)}
                                 min="0"
                             />
-                            <select value={recPeriod} onChange={e => setRecPeriod(e.target.value)}>
+                            <select value={recPeriod} onChange={e => setRecPeriod(e.target.value)} aria-label="Period">
                                 <option value="monthly">Monthly</option>
                                 <option value="weekly">Weekly</option>
                             </select>
                         </div>
                         {recPeriod === 'monthly' && (
-                            <div className="input-row mt-8" style={{ alignItems: 'center' }}>
-                                <label style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.5)', whiteSpace: 'nowrap' }}>
-                                    Cut on day:
-                                </label>
+                            <div className="input-row" style={{ alignItems: 'center' }}>
+                                <label className="field-label" style={{ margin: 0, whiteSpace: 'nowrap' }}>Cut on day</label>
                                 <input
                                     type="number"
-                                    min="1" max="28"
+                                    min="1"
+                                    max="28"
                                     value={recCutDay}
                                     onChange={e => setRecCutDay(e.target.value)}
-                                    style={{ maxWidth: 70 }}
+                                    style={{ maxWidth: 80 }}
                                     placeholder="1–28"
                                 />
-                                <span style={{ fontSize: '0.68rem', color: 'rgba(255,255,255,0.3)' }}>of the month</span>
+                                <span className="text-dim" style={{ fontSize: 'var(--text-xs)' }}>of the month</span>
                             </div>
                         )}
                         {recPeriod === 'weekly' && (
-                            <div style={{ fontSize: '0.68rem', color: 'rgba(255,255,255,0.4)', marginTop: 4 }}>
-                                Deducted every 7 days. Equivalent to ~{(parseFloat(recAmount) * (365.25 / 12 / 7) || 0).toFixed(2)} {cur}/month in buffer calculations.
+                            <div className="text-dim mt-1" style={{ fontSize: 'var(--text-xs)' }}>
+                                Deducted every 7 days. ≈ {(parseFloat(recAmount) * (365.25 / 12 / 7) || 0).toFixed(2)} {cur}/month equivalent.
                             </div>
                         )}
-                        <button className="btn btn-primary mt-12" type="submit" style={{ width: '100%' }}>Add Recurring</button>
+                        <button className="btn btn-primary mt-4 w-full" type="submit">
+                            <IconPlus /> Add Recurring
+                        </button>
                     </form>
-                </div>
+                </section>
             )}
 
             {recurringExpenses.length === 0 ? (
-                <div className="card" style={{ padding: '10px 14px' }}>
-                    <div className="empty-state" style={{ fontSize: '0.78rem' }}>No recurring expenses yet.</div>
+                <div className="card subtle">
+                    <div className="empty-state">No recurring expenses yet.</div>
                 </div>
             ) : (
-                <div className="card" style={{ padding: '6px 0' }}>
+                <div className="card subtle" style={{ padding: 'var(--space-2) var(--space-3)' }}>
                     {recurringExpenses.map(exp => (
-                        <div key={exp.id} className="list-item" style={{ padding: '8px 14px' }}>
-                            <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', flex: 1 }}>
+                        <div key={exp.id} className="list-item">
+                            <label className="row flex-1" style={{ cursor: 'pointer' }}>
                                 <input
                                     type="checkbox"
                                     checked={exp.active}
                                     onChange={() => dispatch({ type: 'TOGGLE_RECURRING', id: exp.id })}
+                                    aria-label={`Toggle ${exp.name}`}
                                 />
                                 <div>
-                                    <div style={{ fontWeight: 600, fontSize: '0.85rem', textDecoration: exp.active ? 'none' : 'line-through', opacity: exp.active ? 1 : 0.5 }}>
+                                    <div
+                                        className="list-item-name"
+                                        style={{
+                                            textDecoration: exp.active ? 'none' : 'line-through',
+                                            opacity: exp.active ? 1 : 0.5,
+                                        }}
+                                    >
                                         {exp.name}
                                     </div>
-                                    <div style={{ fontSize: '0.68rem', color: 'rgba(255,255,255,0.4)' }}>
-                                        {exp.amount} {cur} / {exp.period}
+                                    <div className="list-item-meta">
+                                        <span className="mono">{exp.amount} {cur}</span>
+                                        <span>·</span>
+                                        <span>{exp.period}</span>
                                         {exp.period === 'monthly' && exp.cut_day && (
-                                            <span style={{ marginLeft: 6, opacity: 0.7 }}>· day {exp.cut_day}</span>
+                                            <>
+                                                <span>·</span>
+                                                <span>day {exp.cut_day}</span>
+                                            </>
                                         )}
                                     </div>
                                 </div>
                             </label>
                             <button
-                                className="btn btn-sm btn-ghost"
-                                style={{ color: 'var(--red)', padding: '2px 6px' }}
+                                className="btn btn-sm btn-ghost btn-icon"
+                                style={{ color: 'var(--red)' }}
                                 onClick={() => dispatch({ type: 'DELETE_RECURRING_EXPENSE', id: exp.id })}
                                 aria-label={`Delete ${exp.name}`}
-                            >✕</button>
+                            >
+                                <IconTrash />
+                            </button>
                         </div>
                     ))}
                 </div>
             )}
 
-            {/* ── SECTION: Savings Goals ───────────────────────────────────── */}
-            <div className="section-title" style={{ fontSize: '0.75rem', opacity: 0.6, marginTop: 16 }}>💰 Savings Goals</div>
+            {/* Savings Goals */}
+            <div className="section-title"><IconBanknote /> Savings Goals</div>
             {savingGoals.length === 0 ? (
-                <div className="card">
-                    <div className="empty-state">No saving goals yet. Create one above!</div>
+                <div className="card subtle">
+                    <div className="empty-state">No saving goals yet. Create one above.</div>
                 </div>
             ) : (
                 <div className="goals-grid">
@@ -341,22 +380,21 @@ export default function GoalsList() {
                 </div>
             )}
 
-            {/* ── SECTION: Wishlist ────────────────────────────────────────── */}
+            {/* Wishlist */}
             {wishlistGoals.length > 0 && (
                 <>
-                    <div className="section-title" style={{ fontSize: '0.75rem', opacity: 0.6, marginTop: 16 }}>
-                        💭 Wishlist <span style={{ fontWeight: 400 }}>(no balance effect)</span>
+                    <div className="section-title">
+                        <IconHeart /> Wishlist <span className="text-dim" style={{ fontWeight: 400 }}>(no balance effect)</span>
                     </div>
                     <div className="goals-grid">
                         {wishlistGoals.map(goal => (
-                            <div key={goal.id} style={{ position: 'relative' }}>
+                            <div key={goal.id}>
                                 <GoalCard goal={goal} />
                                 <button
-                                    className="btn btn-sm btn-outline"
-                                    style={{ width: '100%', marginTop: 4, fontSize: '0.72rem' }}
+                                    className="btn btn-sm btn-outline w-full mt-1"
                                     onClick={() => dispatch({ type: 'EDIT_GOAL', id: goal.id, updates: { type: 'saving' } })}
                                 >
-                                    Convert to Saving Goal →
+                                    Convert to Saving Goal <IconArrowRight />
                                 </button>
                             </div>
                         ))}

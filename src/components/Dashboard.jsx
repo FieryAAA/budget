@@ -4,14 +4,21 @@ import ProgressBar from './ProgressBar';
 import GoalCard from './GoalCard';
 import { getRecommendation } from '../utils/financeAI';
 import { simulateRunout, projectBalance, normalizeToMonthly } from '../utils/cashflow';
+import {
+    IconShield, IconShieldAlert, IconCheckCircle, IconAlertTriangle, IconAlertOctagon,
+    IconCalendar, IconBrain, IconSparkles, IconArrowRight, IconCart, IconChart,
+    IconPlus, IconMinus, IconTarget, IconRocket,
+} from './icons';
 
-// ── Runout helper ─────────────────────────────────────────────────────────────
+const DAY_MS = 86_400_000;
+
 function RunoutBadge({ state, cur }) {
     const buffer = state.goals?.find(g => g.isBuffer);
     if (!buffer || buffer.saved <= 0) {
         return (
-            <div style={{ fontSize: '0.72rem', color: 'var(--red)', fontWeight: 700, marginBottom: 8 }}>
-                ⚠️ Buffer depleted
+            <div className="runout text-red">
+                <IconShieldAlert />
+                <span>Buffer depleted</span>
             </div>
         );
     }
@@ -22,21 +29,24 @@ function RunoutBadge({ state, cur }) {
     if (!runout) {
         const p12 = projectBalance(state, 365);
         return (
-            <div style={{ fontSize: '0.72rem', color: 'var(--green)', marginBottom: 8 }}>
-                ✅ Runway: &gt;1 year &nbsp;·&nbsp; In 12mo: <strong>{p12.toLocaleString()} {cur}</strong>
+            <div className="runout text-green">
+                <IconCheckCircle />
+                <span>Runway &gt; 1 year</span>
+                <span className="flex-auto runout-hint">12mo: <strong>{p12.toLocaleString()} {cur}</strong></span>
             </div>
         );
     }
 
-    const daysLeft = Math.ceil((runout - now) / 86_400_000);
+    const daysLeft = Math.ceil((runout - now) / DAY_MS);
     const dateStr = runout.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
-    const color = daysLeft < 30 ? 'var(--red)' : daysLeft < 90 ? 'var(--yellow)' : 'var(--blue)';
-    const icon = daysLeft < 30 ? '🚨' : daysLeft < 90 ? '⚠️' : '📅';
+    const tone = daysLeft < 30 ? 'text-red' : daysLeft < 90 ? 'text-yellow' : 'text-blue';
+    const Icon = daysLeft < 30 ? IconAlertOctagon : daysLeft < 90 ? IconAlertTriangle : IconCalendar;
 
     return (
-        <div style={{ fontSize: '0.72rem', color, marginBottom: 8, fontWeight: daysLeft < 90 ? 700 : 400 }}>
-            {icon} Runs out in ~{daysLeft}d &nbsp;·&nbsp; <strong>{dateStr}</strong>
-            <span style={{ fontSize: '0.65rem', opacity: 0.6 }}> (incl. monthly budget)</span>
+        <div className={`runout ${tone}`}>
+            <Icon />
+            <span>Runs out in ~{daysLeft}d · <strong>{dateStr}</strong></span>
+            <span className="flex-auto runout-hint">incl. budget</span>
         </div>
     );
 }
@@ -58,10 +68,10 @@ export default function Dashboard({ onTabChange }) {
     const spentThisMonth = monthly.spent || 0;
     const remainingBudget = Math.min(available, Math.max(0, essentials - spentThisMonth));
 
-    const bufferTarget = (safetyMonths || 3) * essentials;
+    const months = safetyMonths || 3;
+    const bufferTarget = months * essentials;
     const fundedMonths = essentials > 0 ? (available / essentials).toFixed(1) : '—';
 
-    // Monthly recurring cost (sum normalised to monthly)
     const monthlyRecurring = recurringExpenses
         .filter(e => e.active)
         .reduce((s, e) => s + normalizeToMonthly(e), 0);
@@ -72,41 +82,42 @@ export default function Dashboard({ onTabChange }) {
         .slice(0, 3);
     const readyGoals = goals.filter(g => !g.isBuffer && g.type !== 'wishlist' && g.saved >= g.target);
 
-    const maxDisplay = 12; // for AI rec only
+    const balanceColor = available < 50 ? 'text-red' : available < 150 ? 'text-yellow' : 'text-green';
 
     return (
         <div>
-            {/* ── SAFETY BUFFER ────────────────────────────────────────────── */}
-            <div className="card">
-                <div className="flex-between mb-4">
-                    <div className="card-title"><span className="icon">🛡️</span> Safety Buffer</div>
-                    {/* Target months selector — dynamic, no level-up gating */}
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.72rem', color: 'rgba(255,255,255,0.5)' }}>
-                        Target:
+            {/* Safety Buffer */}
+            <section className="card">
+                <div className="flex-between mb-2">
+                    <div className="card-title"><IconShield /> Safety Buffer</div>
+                    <div className="stepper">
+                        <span>Target</span>
                         <button
-                            onClick={() => dispatch({ type: 'SET_SAFETY_MONTHS', value: (safetyMonths || 3) - 1 })}
-                            style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.5)', cursor: 'pointer', fontSize: '1rem', lineHeight: 1, padding: '0 2px' }}
+                            type="button"
+                            onClick={() => dispatch({ type: 'SET_SAFETY_MONTHS', value: months - 1 })}
                             aria-label="Decrease target months"
-                        >−</button>
-                        <strong style={{ color: 'var(--blue)', minWidth: 20, textAlign: 'center' }}>{safetyMonths || 3}mo</strong>
+                        >
+                            <IconMinus />
+                        </button>
+                        <span className="stepper-value">{months}mo</span>
                         <button
-                            onClick={() => dispatch({ type: 'SET_SAFETY_MONTHS', value: (safetyMonths || 3) + 1 })}
-                            style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.5)', cursor: 'pointer', fontSize: '1rem', lineHeight: 1, padding: '0 2px' }}
+                            type="button"
+                            onClick={() => dispatch({ type: 'SET_SAFETY_MONTHS', value: months + 1 })}
                             aria-label="Increase target months"
-                        >+</button>
+                        >
+                            <IconPlus />
+                        </button>
                     </div>
                 </div>
 
-                {/* Balance */}
-                <div className="card-value" style={{ color: available < 50 ? 'var(--red)' : available < 150 ? 'var(--yellow)' : 'var(--green)' }}>
-                    {available.toLocaleString()} {cur}
+                <div className={`card-value ${balanceColor}`}>
+                    {available.toLocaleString()} <span style={{ fontSize: '0.5em', opacity: 0.6 }}>{cur}</span>
                 </div>
 
-                {/* Buffer progress toward target */}
-                <div style={{ marginBottom: 10 }}>
-                    <div className="flex-between" style={{ fontSize: '0.72rem', opacity: 0.6, marginBottom: 4 }}>
+                <div className="mt-4">
+                    <div className="progress-label">
                         <span>{fundedMonths} months funded</span>
-                        <span>Target: {bufferTarget.toLocaleString()} {cur} ({safetyMonths || 3}mo)</span>
+                        <span className="mono">{bufferTarget.toLocaleString()} {cur}</span>
                     </div>
                     <ProgressBar
                         value={available}
@@ -115,11 +126,10 @@ export default function Dashboard({ onTabChange }) {
                     />
                 </div>
 
-                {/* Monthly budget remaining */}
-                <div style={{ marginBottom: 10 }}>
-                    <div className="flex-between" style={{ fontSize: '0.72rem', opacity: 0.6, marginBottom: 4 }}>
+                <div className="mt-3">
+                    <div className="progress-label">
                         <span>Monthly budget left</span>
-                        <span>{remainingBudget} / {essentials} {cur}</span>
+                        <span className="mono">{remainingBudget} / {essentials} {cur}</span>
                     </div>
                     <ProgressBar
                         value={remainingBudget}
@@ -128,94 +138,107 @@ export default function Dashboard({ onTabChange }) {
                     />
                 </div>
 
-                {/* Runout simulation */}
                 <RunoutBadge state={state} cur={cur} />
-            </div>
+            </section>
 
-            {/* Free cash alert */}
+            {/* Free cash callout */}
             {cash > 0 && (
-                <div className="mt-12">
-                    <div style={{ display: 'flex', gap: 8 }}>
-                        <div className="alert alert-info" style={{ cursor: 'pointer', flex: 1, margin: 0 }} onClick={() => onTabChange('income')}>
-                            <span>🧠</span>
-                            <span>You have <strong>{cash.toLocaleString()} {cur}</strong> unallocated. <strong>Allocate it →</strong></span>
-                        </div>
-                        <button
-                            className="btn"
-                            style={{ background: 'var(--blue)', color: 'white', fontWeight: 600, border: 'none', padding: '0 16px', borderRadius: 12, cursor: 'pointer' }}
-                            onClick={() => setShowRec(!showRec)}
-                        >
-                            🤖 AI Rec
-                        </button>
-                    </div>
-
-                    {showRec && (
-                        <div className="card mt-8" style={{ background: 'rgba(59,130,246,0.08)', border: '1px solid rgba(59,130,246,0.3)' }}>
-                            <div className="card-title text-blue" style={{ marginBottom: 16 }}>
-                                <span className="icon">🤖</span> Smart Allocation Recommendation
-                            </div>
-                            <div style={{ fontSize: '0.8rem', opacity: 0.8, marginBottom: 16 }}>
-                                Based on standard personal finance principles (Safety First, Debt/Priority Focus, Balanced Wants):
-                            </div>
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                                {getRecommendation(cash, goals, essentials, maxDisplay).map((rec, i) => (
-                                    <div key={i} style={{ background: 'rgba(0,0,0,0.2)', padding: 12, borderRadius: 8 }}>
-                                        <div className="flex-between mb-4">
-                                            <strong style={{ color: '#fff' }}>{rec.title}</strong>
-                                            <strong className="text-blue">{rec.amount.toLocaleString()} {cur}</strong>
-                                        </div>
-                                        <div style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.6)', lineHeight: 1.4 }}>
-                                            {rec.reason}
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                            <button className="btn btn-outline mt-16 w-full" onClick={() => onTabChange('income')}>
-                                Go to Allocation Wizard →
-                            </button>
-                        </div>
-                    )}
+                <div className="row mt-4" style={{ alignItems: 'stretch' }}>
+                    <button
+                        type="button"
+                        className="alert alert-info flex-1"
+                        style={{ textAlign: 'left', cursor: 'pointer', font: 'inherit' }}
+                        onClick={() => onTabChange('income')}
+                    >
+                        <IconBrain />
+                        <span>
+                            <strong>{cash.toLocaleString()} {cur}</strong> unallocated.{' '}
+                            <span className="text-muted">Allocate it</span>
+                        </span>
+                        <IconArrowRight style={{ marginLeft: 'auto' }} />
+                    </button>
+                    <button
+                        className="btn btn-blue"
+                        onClick={() => setShowRec(s => !s)}
+                        aria-expanded={showRec}
+                    >
+                        <IconSparkles /> AI
+                    </button>
                 </div>
             )}
 
-            {/* ── READY TO BUY ─────────────────────────────────────────────── */}
+            {showRec && cash > 0 && (
+                <div className="card highlight mt-3">
+                    <div className="card-title text-blue"><IconSparkles /> Smart Allocation</div>
+                    <div className="card-sub mb-3">
+                        Based on standard personal finance principles (safety first, deadlines, priority focus):
+                    </div>
+                    <div className="stack-3">
+                        {getRecommendation(cash, goals, essentials, 12).map((rec, i) => (
+                            <div key={i} className="card subtle" style={{ margin: 0, padding: 'var(--space-3)' }}>
+                                <div className="flex-between mb-1">
+                                    <strong>{rec.title}</strong>
+                                    <strong className="text-blue mono">{rec.amount.toLocaleString()} {cur}</strong>
+                                </div>
+                                <div className="text-muted" style={{ fontSize: 'var(--text-xs)', lineHeight: 1.45 }}>
+                                    {rec.reason}
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                    <button className="btn btn-outline mt-4 w-full" onClick={() => onTabChange('income')}>
+                        Go to Allocation Wizard <IconArrowRight />
+                    </button>
+                </div>
+            )}
+
+            {/* Ready to Buy */}
             {readyGoals.length > 0 && (
                 <>
-                    <div className="section-title">🎁 Ready to Buy</div>
+                    <div className="section-title"><IconCart /> Ready to Buy</div>
                     <div className="goals-grid">
                         {readyGoals.map(goal => <GoalCard key={goal.id} goal={goal} compact />)}
                     </div>
                 </>
             )}
 
-            {/* ── NEXT PRIORITIES ─────────────────────────────────────────── */}
+            {/* Next Priorities */}
             {topGoals.length > 0 && (
                 <>
-                    <div className="section-title">🎯 Next Priorities</div>
+                    <div className="section-title"><IconTarget /> Next Priorities</div>
                     <div className="goals-grid">
                         {topGoals.map(goal => <GoalCard key={goal.id} goal={goal} compact />)}
                     </div>
                 </>
             )}
 
-            {/* ── MONTHLY BREAKDOWN ───────────────────────────────────────── */}
-            <div className="card mt-12">
-                <div className="card-title"><span className="icon">🛒</span> Monthly Breakdown</div>
+            {/* Monthly Breakdown */}
+            <section className="card mt-4">
+                <div className="card-title"><IconChart /> Monthly Breakdown</div>
                 <div className="mini-grid">
-                    <div className="mini-card"><div className="label">Survival</div><div className="value">{monthly.budget} {cur}</div></div>
-                    <div className="mini-card"><div className="label">Recurring</div><div className="value">{Math.round(monthlyRecurring)} {cur}</div></div>
-                    <div className="mini-card"><div className="label">Total / mo</div><div className="value text-blue">{Math.round(essentials)} {cur}</div></div>
+                    <div className="mini-card">
+                        <div className="label">Survival</div>
+                        <div className="value">{monthly.budget} {cur}</div>
+                    </div>
+                    <div className="mini-card">
+                        <div className="label">Recurring</div>
+                        <div className="value">{Math.round(monthlyRecurring)} {cur}</div>
+                    </div>
+                    <div className="mini-card">
+                        <div className="label">Total / mo</div>
+                        <div className="value text-blue">{Math.round(essentials)} {cur}</div>
+                    </div>
                 </div>
-            </div>
+            </section>
 
-            {/* ── OVERALL SAVING ───────────────────────────────────────────── */}
+            {/* Net Goal Progress */}
             {totalTargets > 0 && (
-                <div className="card mt-24" style={{ background: 'rgba(59,130,246,0.05)', border: '1px dashed rgba(59,130,246,0.3)' }}>
-                    <div className="card-title" style={{ fontSize: '0.8rem', opacity: 0.7 }}>Net Goal Progress</div>
-                    <div className="flex-between mb-8">
-                        <div style={{ fontSize: '0.85rem' }}>Total Put Aside</div>
-                        <strong className="text-blue">
-                            {Math.max(0, totalAllocated - Math.min(bufferGoal?.saved || 0, Math.max(0, (safetyMonths - 1)) * essentials)).toLocaleString()} {cur}
+                <section className="card subtle mt-5">
+                    <div className="card-title"><IconRocket /> Net Goal Progress</div>
+                    <div className="flex-between mb-2">
+                        <span className="text-muted" style={{ fontSize: 'var(--text-sm)' }}>Total put aside</span>
+                        <strong className="text-blue mono">
+                            {Math.max(0, totalAllocated - Math.min(bufferGoal?.saved || 0, Math.max(0, months - 1) * essentials)).toLocaleString()} {cur}
                         </strong>
                     </div>
                     <ProgressBar
@@ -224,7 +247,7 @@ export default function Dashboard({ onTabChange }) {
                         label={`${Math.round((totalAllocated / totalTargets) * 100)}% funded`}
                         color="blue"
                     />
-                </div>
+                </section>
             )}
         </div>
     );

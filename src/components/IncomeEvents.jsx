@@ -2,16 +2,23 @@ import { useState } from 'react';
 import { useStore } from '../store';
 import { computeAllocation } from '../utils/allocator';
 import { getFutureEvents } from '../utils/cashflow';
+import {
+    IconBanknote, IconCalendar, IconBrain, IconRocket, IconPlus, IconTrash,
+    IconArrowDown, IconShield, IconAlertTriangle, IconAlertOctagon, IconTarget,
+    IconHeart, IconWallet,
+} from './icons';
 
-const TYPE_STYLES = {
-  survival:      { color: 'var(--yellow)', label: 'Survival needs' },
-  urgent:        { color: 'var(--red)',    label: 'Urgent / overdue' },
-  deadline:      { color: 'var(--blue)',   label: 'Deadline installment' },
-  'high-priority': { color: 'var(--green)', label: 'High priority' },
-  'buffer-topup':  { color: 'var(--yellow)', label: 'Buffer top-up' },
-  'medium-priority': { color: 'var(--green)', label: 'Medium priority' },
-  wishlist:      { color: '#a78bfa',       label: 'Wishlist' },
-  'low-priority':  { color: 'rgba(255,255,255,0.5)', label: 'Low priority' },
+const DAY_MS = 86_400_000;
+
+const TYPE_META = {
+    survival:        { color: 'var(--yellow)', label: 'Survival needs',        Icon: IconWallet },
+    urgent:          { color: 'var(--red)',    label: 'Urgent / overdue',     Icon: IconAlertOctagon },
+    deadline:        { color: 'var(--blue)',   label: 'Deadline installment', Icon: IconCalendar },
+    'high-priority': { color: 'var(--green)',  label: 'High priority',        Icon: IconTarget },
+    'buffer-topup':  { color: 'var(--yellow)', label: 'Buffer top-up',        Icon: IconShield },
+    'medium-priority': { color: 'var(--green)', label: 'Medium priority',     Icon: IconTarget },
+    wishlist:        { color: 'var(--purple)', label: 'Wishlist',             Icon: IconHeart },
+    'low-priority':  { color: 'var(--text-muted)', label: 'Low priority',     Icon: IconTarget },
 };
 
 export default function IncomeEvents() {
@@ -23,7 +30,6 @@ export default function IncomeEvents() {
     const [amount, setAmount] = useState('');
     const [draft, setDraft] = useState(null);
 
-    // Next 3 upcoming bill cuts
     const upcomingBills = getFutureEvents(state, 45).slice(0, 4);
 
     function handleSubmit(e) {
@@ -50,110 +56,137 @@ export default function IncomeEvents() {
 
     return (
         <div>
-            <div className="section-title">💵 Income Management</div>
+            <div className="section-title"><IconBanknote /> Income Management</div>
 
             {cash > 0 && (
-                <div className="card" style={{ background: 'rgba(34,197,94,0.05)', border: '1px solid rgba(34,197,94,0.2)' }}>
-                    <div style={{ display: 'flex', gap: 24 }}>
-                        <div>
-                            <div className="label" style={{ fontSize: '0.65rem' }}>UNALLOCATED CASH</div>
-                            <div className="value text-blue" style={{ fontSize: '1.1rem', fontWeight: 800 }}>{cash.toLocaleString()} {cur}</div>
-                        </div>
+                <section className="card subtle">
+                    <div className="card-title"><IconWallet /> Unallocated Cash</div>
+                    <div className="card-value mono text-blue" style={{ fontSize: 'var(--text-2xl)' }}>
+                        {cash.toLocaleString()} <span style={{ fontSize: '0.5em', opacity: 0.6 }}>{cur}</span>
                     </div>
-                </div>
+                </section>
             )}
 
             {/* Upcoming bills */}
             {upcomingBills.length > 0 && (
-                <div className="card mt-12" style={{ background: 'rgba(251,191,36,0.04)', border: '1px solid rgba(251,191,36,0.15)' }}>
-                    <div style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.5)', marginBottom: 8, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                        Upcoming bills (next 45d)
-                    </div>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                <section className="card subtle">
+                    <div className="card-title"><IconCalendar /> Upcoming Bills · 45d</div>
+                    <div className="stack">
                         {upcomingBills.map((ev, i) => {
-                            const daysAway = Math.ceil((ev.date - new Date()) / 86_400_000);
-                            const color = daysAway <= 7 ? 'var(--red)' : daysAway <= 14 ? 'var(--yellow)' : 'rgba(255,255,255,0.6)';
+                            const daysAway = Math.ceil((ev.date - new Date()) / DAY_MS);
+                            const tone = daysAway <= 7 ? 'text-red' : daysAway <= 14 ? 'text-yellow' : 'text-muted';
                             return (
-                                <div key={i} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.78rem' }}>
-                                    <span style={{ color }}>{ev.name}</span>
-                                    <span style={{ color, fontWeight: 600 }}>
-                                        {ev.amount.toLocaleString()} {cur}
-                                        <span style={{ opacity: 0.6, fontWeight: 400, marginLeft: 6 }}>in {daysAway}d</span>
+                                <div key={i} className="flex-between" style={{ fontSize: 'var(--text-sm)' }}>
+                                    <span className={tone}>{ev.name}</span>
+                                    <span className={`${tone} row-tight`}>
+                                        <span className="mono" style={{ fontWeight: 700 }}>{ev.amount.toLocaleString()} {cur}</span>
+                                        <span className="text-dim" style={{ fontWeight: 400, fontSize: 'var(--text-2xs)' }}>in {daysAway}d</span>
                                     </span>
                                 </div>
                             );
                         })}
                     </div>
-                </div>
+                </section>
             )}
 
-            {/* Income Form */}
+            {/* Income form */}
             {!draft && (
-                <div className="card mt-12">
-                    <div className="card-title">Log New Income</div>
+                <section className="card">
+                    <div className="card-title"><IconArrowDown /> Log New Income</div>
                     <form onSubmit={handleSubmit}>
                         <div className="input-row">
-                            <input type="text" placeholder="Source (e.g. Salary)" value={source} onChange={e => setSource(e.target.value)} />
-                            <input type="number" placeholder="Amount" value={amount} onChange={e => setAmount(e.target.value)} min="0" />
-                            <button className="btn btn-primary" type="submit">Allocate</button>
+                            <input
+                                type="text"
+                                placeholder="Source (e.g. Salary)"
+                                value={source}
+                                onChange={e => setSource(e.target.value)}
+                            />
+                            <input
+                                type="number"
+                                placeholder="Amount"
+                                value={amount}
+                                onChange={e => setAmount(e.target.value)}
+                                min="0"
+                            />
+                            <button className="btn btn-primary" type="submit">
+                                <IconBrain /> Allocate
+                            </button>
                         </div>
                     </form>
-                    <div style={{ display: 'flex', gap: 6, marginTop: 10, flexWrap: 'wrap', alignItems: 'center' }}>
+                    <div className="cluster mt-3">
                         {['Salary', 'Freelance', 'Refund', 'Bonus'].map(s => (
-                            <button key={s} className="btn btn-sm btn-ghost" onClick={() => setSource(s)} style={{ fontSize: '0.7rem' }}>{s}</button>
+                            <button
+                                key={s}
+                                className="btn btn-sm btn-ghost"
+                                onClick={() => setSource(s)}
+                            >
+                                {s}
+                            </button>
                         ))}
-                        <span style={{ opacity: 0.3, fontSize: '0.7rem', marginLeft: 'auto' }}>or</span>
-                        <button className="btn btn-sm btn-ghost" onClick={quickAdd} style={{ fontSize: '0.7rem', color: 'var(--blue)' }}>Quick Add to Cash</button>
+                        <span className="flex-auto" />
+                        <button className="btn btn-sm btn-ghost text-blue" onClick={quickAdd}>
+                            <IconPlus /> Quick Add to Cash
+                        </button>
                     </div>
-                </div>
+                </section>
             )}
 
-            {/* Allocation Preview */}
+            {/* Allocation preview */}
             {draft && (
-                <div className="card" style={{ border: '2px solid var(--blue)' }}>
-                    <div className="card-title"><span className="icon">🧠</span> Intelligent Allocation</div>
-                    <div className="card-sub mb-12">
-                        Received <strong>{draft.amount.toLocaleString()} {cur}</strong> from <em>{draft.source}</em>
+                <section className="card highlight">
+                    <div className="card-title text-blue"><IconBrain /> Intelligent Allocation</div>
+                    <div className="card-sub mb-3">
+                        Received <strong className="mono text-green">{draft.amount.toLocaleString()} {cur}</strong> from <em>{draft.source}</em>
                     </div>
 
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    <div className="stack">
                         {draft.split.lines.map((line, i) => {
-                            const style = TYPE_STYLES[line.type] || {};
+                            const meta = TYPE_META[line.type] || {};
+                            const Icon = meta.Icon;
                             return (
                                 <div className="list-item" key={i}>
-                                    <div style={{ color: style.color }}>
-                                        {line.icon} {line.label}
+                                    <div className="row" style={{ color: meta.color || 'inherit' }}>
+                                        {Icon && <Icon />}
+                                        <span>{line.label}</span>
                                     </div>
-                                    <div style={{ fontWeight: 700, color: style.color }}>
+                                    <div className="list-item-amount" style={{ color: meta.color || 'inherit' }}>
                                         +{line.amount.toLocaleString()} {cur}
                                     </div>
                                 </div>
                             );
                         })}
                         {draft.split.cashRemainder > 0 && (
-                            <div className="list-item" style={{ borderTop: '1px dashed rgba(255,255,255,0.1)', paddingTop: 8, marginTop: 2 }}>
-                                <div>💰 Remains as Free Cash</div>
-                                <div style={{ fontWeight: 700 }}>+{draft.split.cashRemainder.toLocaleString()} {cur}</div>
+                            <div className="list-item">
+                                <div className="row">
+                                    <IconWallet />
+                                    <span>Remains as Free Cash</span>
+                                </div>
+                                <div className="list-item-amount">+{draft.split.cashRemainder.toLocaleString()} {cur}</div>
                             </div>
                         )}
                         {draft.split.lines.length === 0 && draft.split.cashRemainder > 0 && (
                             <div className="list-item">
-                                <div>💰 All to Free Cash</div>
-                                <div style={{ fontWeight: 700 }}>+{draft.split.cashRemainder.toLocaleString()} {cur}</div>
+                                <div className="row">
+                                    <IconWallet />
+                                    <span>All to Free Cash</span>
+                                </div>
+                                <div className="list-item-amount">+{draft.split.cashRemainder.toLocaleString()} {cur}</div>
                             </div>
                         )}
                     </div>
 
-                    <div style={{ display: 'flex', gap: 8, marginTop: 24 }}>
-                        <button className="btn btn-ghost" style={{ flex: 1 }} onClick={() => setDraft(null)}>Cancel</button>
-                        <button className="btn btn-primary" style={{ flex: 2 }} onClick={confirmAllocation}>Apply Split 🚀</button>
+                    <div className="row mt-5">
+                        <button className="btn btn-ghost flex-1" onClick={() => setDraft(null)}>Cancel</button>
+                        <button className="btn btn-primary" style={{ flex: 2 }} onClick={confirmAllocation}>
+                            <IconRocket /> Apply Split
+                        </button>
                     </div>
-                </div>
+                </section>
             )}
 
             {/* History */}
-            <div className="card mt-24">
-                <div className="card-title">Recent Income</div>
+            <section className="card mt-5">
+                <div className="card-title"><IconArrowDown /> Recent Income</div>
                 {(!incomeEvents || incomeEvents.length === 0)
                     ? <div className="empty-state">No income logged yet</div>
                     : incomeEvents.slice(0, 10).map(inc => (
@@ -162,19 +195,21 @@ export default function IncomeEvents() {
                                 <div className="list-item-name">{inc.source}</div>
                                 <div className="list-item-meta">{new Date(inc.date).toLocaleDateString()}</div>
                             </div>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                                <span className="text-green" style={{ fontWeight: 700 }}>+{inc.amount.toLocaleString()} {cur}</span>
+                            <div className="row">
+                                <span className="text-green list-item-amount">+{inc.amount.toLocaleString()} {cur}</span>
                                 <button
-                                    className="btn btn-sm btn-danger"
+                                    className="btn btn-sm btn-ghost btn-icon"
                                     onClick={() => dispatch({ type: 'DELETE_INCOME', id: inc.id })}
                                     aria-label={`Delete ${inc.source} income`}
-                                    style={{ padding: '4px 8px', fontSize: '0.65rem' }}
-                                >✕</button>
+                                    style={{ color: 'var(--red)' }}
+                                >
+                                    <IconTrash />
+                                </button>
                             </div>
                         </div>
                     ))
                 }
-            </div>
+            </section>
         </div>
     );
 }

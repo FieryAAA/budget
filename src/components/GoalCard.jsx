@@ -2,6 +2,23 @@ import { useState, useMemo, memo } from 'react';
 import { useStore, getMonthlySaving, formatTargetDate } from '../store';
 import ProgressBar from './ProgressBar';
 import { calculateProgress } from '../utils/math';
+import {
+    IconShield, IconTarget, IconHeart, IconCalendar, IconCart,
+    IconCheckCircle, IconAlertOctagon, IconClock,
+    IconPlus, IconMinus, IconEdit, IconTrash, IconX, IconCheck,
+} from './icons';
+
+function goalIcon(goal) {
+    if (goal.isBuffer) return IconShield;
+    if (goal.type === 'wishlist') return IconHeart;
+    return IconTarget;
+}
+
+function goalIconClass(goal) {
+    if (goal.isBuffer) return 'buffer';
+    if (goal.type === 'wishlist') return 'wishlist';
+    return '';
+}
 
 const GoalCard = memo(function GoalCard({ goal, compact = false }) {
     const { state, dispatch } = useStore();
@@ -10,9 +27,8 @@ const GoalCard = memo(function GoalCard({ goal, compact = false }) {
 
     const [fundAmt, setFundAmt] = useState('');
     const [withdrawAmt, setWithdrawAmt] = useState('');
-    const [mode, setMode] = useState(null); // 'fund', 'withdraw', 'edit'
+    const [mode, setMode] = useState(null);
 
-    // Edit form state
     const [editName, setEditName] = useState(goal.name);
     const [editTarget, setEditTarget] = useState(goal.target);
     const [editPriority, setEditPriority] = useState(goal.priority);
@@ -22,18 +38,12 @@ const GoalCard = memo(function GoalCard({ goal, compact = false }) {
 
     const { remaining, pct, isFunded, plan, barColor, pctColor } = useMemo(() => {
         const progress = calculateProgress(goal.saved, goal.target);
-        return {
-            ...progress,
-            plan: getMonthlySaving(goal)
-        };
+        return { ...progress, plan: getMonthlySaving(goal) };
     }, [goal]);
 
-    // Icon based on goal kind
-    const icon = goal.isBuffer ? '🛡️' : goal.type === 'wishlist' ? '💭' : '🎯';
-
-    // Wishlist goals are not purchasable until converted to saving
+    const Icon = goalIcon(goal);
+    const iconKindClass = goalIconClass(goal);
     const isPurchasable = isFunded && !goal.isBuffer && goal.type !== 'wishlist';
-
 
     function handleFund(e) {
         e.preventDefault();
@@ -78,55 +88,64 @@ const GoalCard = memo(function GoalCard({ goal, compact = false }) {
 
     if (compact) {
         return (
-            <div className="card" style={isFunded ? { borderColor: 'rgba(34,197,94,0.4)', background: 'rgba(34,197,94,0.05)' } : {}}>
+            <div className={`card ${isFunded ? 'highlight' : ''}`}>
                 <div className="flex-between">
-                    <div>
-                        <div className="list-item-name" style={{ fontSize: '0.9rem' }}>
-                            {icon} {goal.name}
-                        </div>
+                    <div className={`goal-name ${iconKindClass}`}>
+                        <Icon />
+                        {goal.name}
                     </div>
-                    <div style={{ textAlign: 'right' }}>
+                    <div className="row-tight">
                         {isFunded ? (
-                            <div className="badge success">{goal.isBuffer ? 'FUNDED' : 'READY'}</div>
+                            <span className="badge success">
+                                <IconCheckCircle />
+                                {goal.isBuffer ? 'Funded' : 'Ready'}
+                            </span>
                         ) : (
-                            <div style={{ fontSize: '1rem', fontWeight: 800, color: pctColor }}>{pct}%</div>
+                            <span className="goal-pct" style={{ color: pctColor }}>{pct}%</span>
                         )}
                     </div>
                 </div>
                 <ProgressBar value={goal.saved} max={goal.target} color={barColor} />
                 {isPurchasable && (
-                    <button className="btn btn-sm btn-primary mt-8" onClick={handlePurchase} style={{ width: '100%' }}>Buy Now 🛒</button>
+                    <button className="btn btn-sm btn-primary w-full mt-3" onClick={handlePurchase}>
+                        <IconCart /> Buy Now
+                    </button>
                 )}
             </div>
         );
     }
 
     return (
-        <div className="card" style={isFunded ? { borderColor: 'var(--green)', boxShadow: '0 0 15px rgba(34,197,94,0.1)' } : {}}>
-            {!mode || mode !== 'edit' ? (
+        <div className={`card ${isFunded ? 'highlight' : ''}`}>
+            {(!mode || mode !== 'edit') ? (
                 <>
-                    <div className="flex-between">
+                    <div className="goal-head">
                         <div>
-                            <div style={{ fontSize: '1rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 6 }}>
-                                {icon}
+                            <div className={`goal-name ${iconKindClass}`}>
+                                <Icon />
                                 {goal.name}
                             </div>
-                            <div className="list-item-meta" style={{ marginTop: 4 }}>
+                            <div className="list-item-meta mt-2">
                                 {goal.priority && <span className={`badge ${goal.priority.toLowerCase()}`}>{goal.priority}</span>}
                                 {goal.category && <span className={`badge ${goal.category.toLowerCase()}`}>{goal.category}</span>}
-                                {goal.targetDate && <span className="badge date">📅 {formatTargetDate(goal.targetDate)}</span>}
+                                {goal.targetDate && (
+                                    <span className="badge date">
+                                        <IconCalendar /> {formatTargetDate(goal.targetDate)}
+                                    </span>
+                                )}
                                 {goal.type === 'wishlist' && (
-                                    <span className="badge" style={{ background: 'rgba(139,92,246,0.2)', color: '#a78bfa' }}>Wishlist</span>
+                                    <span className="badge wishlist">Wishlist</span>
                                 )}
                             </div>
                         </div>
-                        <div style={{ textAlign: 'right' }}>
+                        <div>
                             {isFunded ? (
-                                <div className="badge success" style={{ padding: '6px 12px', fontSize: '0.8rem' }}>
-                                    {goal.isBuffer ? 'Fully Funded' : 'Ready to Buy'}
-                                </div>
+                                <span className="badge success">
+                                    <IconCheckCircle />
+                                    {goal.isBuffer ? 'Funded' : 'Ready'}
+                                </span>
                             ) : (
-                                <div style={{ fontSize: '1.2rem', fontWeight: 800, color: pctColor }}>{pct}%</div>
+                                <span className="goal-pct" style={{ color: pctColor }}>{pct}%</span>
                             )}
                         </div>
                     </div>
@@ -139,49 +158,85 @@ const GoalCard = memo(function GoalCard({ goal, compact = false }) {
                     />
 
                     {isPurchasable && (
-                        <div className="alert alert-success mt-12">
-                            <span>🎉</span>
-                            <div style={{ flex: 1 }}>
-                                <strong>Goal reached!</strong> Use your allocated funds to make the purchase.
-                                <button className="btn btn-sm btn-primary mt-8" onClick={handlePurchase} style={{ width: '100%' }}>Complete Purchase 🛒</button>
+                        <div className="alert alert-success mt-3" style={{ flexDirection: 'column', alignItems: 'stretch' }}>
+                            <div className="row">
+                                <IconCheckCircle />
+                                <strong>Goal reached.</strong>
+                                <span style={{ flex: 1 }}>Use your allocated funds to purchase.</span>
                             </div>
+                            <button className="btn btn-sm btn-primary mt-2 w-full" onClick={handlePurchase}>
+                                <IconCart /> Complete Purchase
+                            </button>
                         </div>
                     )}
 
                     {plan && !isFunded && (
-                        <div className={`alert ${plan.status === 'overdue' ? 'alert-danger' : plan.status === 'due-now' ? 'alert-warning' : 'alert-info'} mt-8`}>
-                            <span>{plan.status === 'overdue' ? '🚨' : plan.status === 'due-now' ? '⏳' : '📆'}</span>
-                            <span>
-                                {plan.status === 'overdue' ? 'Behind schedule!' :
-                                    plan.status === 'due-now' ? 'Due this month!' :
-                                        `Save ${plan.needed.toLocaleString()} ${cur}/month`}
+                        <div className={`alert ${plan.status === 'overdue' ? 'alert-danger' : plan.status === 'due-now' ? 'alert-warning' : 'alert-info'} mt-2`}>
+                            {plan.status === 'overdue' ? <IconAlertOctagon /> : plan.status === 'due-now' ? <IconClock /> : <IconCalendar />}
+                            <span style={{ flex: 1 }}>
+                                {plan.status === 'overdue'
+                                    ? 'Behind schedule'
+                                    : plan.status === 'due-now'
+                                        ? 'Due this month'
+                                        : `Save ${plan.needed.toLocaleString()} ${cur}/month`}
                             </span>
-                            <span style={{ marginLeft: 'auto', fontSize: '0.7rem', opacity: 0.8 }}>({plan.needed.toLocaleString()} {cur} needed)</span>
+                            <span className="mono text-dim" style={{ fontSize: 'var(--text-2xs)' }}>
+                                ({plan.needed.toLocaleString()} {cur} needed)
+                            </span>
                         </div>
                     )}
 
-                    <div style={{ display: 'flex', gap: 6, marginTop: 12 }}>
-                        {!isFunded && <button className="btn btn-sm btn-primary" onClick={() => setMode('fund')}>+ Fund</button>}
-                        {goal.saved > 0 && <button className="btn btn-sm btn-ghost" onClick={() => setMode('withdraw')}>− Withdraw</button>}
-                        <button className="btn btn-sm btn-ghost" onClick={() => setMode('edit')} style={{ marginLeft: goal.saved > 0 ? 0 : 'auto' }}>✏️ Edit</button>
+                    <div className="goal-actions">
+                        {!isFunded && (
+                            <button className="btn btn-sm btn-primary" onClick={() => setMode('fund')}>
+                                <IconPlus /> Fund
+                            </button>
+                        )}
+                        {goal.saved > 0 && (
+                            <button className="btn btn-sm btn-ghost" onClick={() => setMode('withdraw')}>
+                                <IconMinus /> Withdraw
+                            </button>
+                        )}
+                        <button className="btn btn-sm btn-ghost" onClick={() => setMode('edit')}>
+                            <IconEdit /> Edit
+                        </button>
                         {!goal.isBuffer && (
-                            <button className="btn btn-sm btn-danger" aria-label="Delete goal" onClick={() => dispatch({ type: 'DELETE_GOAL', id: goal.id })} style={{ marginLeft: 'auto' }}>✕</button>
+                            <button
+                                className="btn btn-sm btn-danger btn-icon"
+                                aria-label="Delete goal"
+                                onClick={() => dispatch({ type: 'DELETE_GOAL', id: goal.id })}
+                            >
+                                <IconTrash />
+                            </button>
                         )}
                     </div>
                 </>
             ) : (
                 <form onSubmit={handleEdit}>
-                    <div className="card-title">Edit Goal</div>
-                    <input type="text" aria-label="Goal Name" value={editName} onChange={e => setEditName(e.target.value)} style={{ width: '100%', marginBottom: 8 }} placeholder="Goal name" />
+                    <div className="card-title"><IconEdit /> Edit Goal</div>
+                    <input
+                        type="text"
+                        aria-label="Goal name"
+                        value={editName}
+                        onChange={e => setEditName(e.target.value)}
+                        style={{ width: '100%' }}
+                        placeholder="Goal name"
+                    />
                     <div className="input-row">
-                        <input type="number" aria-label="Target Amount" value={editTarget} onChange={e => setEditTarget(e.target.value)} placeholder="Target amount" />
+                        <input
+                            type="number"
+                            aria-label="Target amount"
+                            value={editTarget}
+                            onChange={e => setEditTarget(e.target.value)}
+                            placeholder="Target amount"
+                        />
                         <select aria-label="Priority" value={editPriority} onChange={e => setEditPriority(e.target.value)}>
                             <option value="High">High</option>
                             <option value="Medium">Medium</option>
                             <option value="Low">Low</option>
                         </select>
                     </div>
-                    <div className="input-row mt-8">
+                    <div className="input-row">
                         <select aria-label="Category" value={editCategory} onChange={e => setEditCategory(e.target.value)}>
                             <option value="Essential">Essential</option>
                             <option value="Productivity">Productivity</option>
@@ -189,26 +244,29 @@ const GoalCard = memo(function GoalCard({ goal, compact = false }) {
                             <option value="Education">Education</option>
                             <option value="Luxury">Luxury</option>
                         </select>
-                        <input type="month" aria-label="Target Date" value={editDate} onChange={e => setEditDate(e.target.value)} />
+                        <input type="month" aria-label="Target date" value={editDate} onChange={e => setEditDate(e.target.value)} />
                     </div>
-                    {/* Type selector: saving = affects balance/buffer; wishlist = display-only */}
                     {!goal.isBuffer && (
-                        <div className="input-row mt-8">
-                            <select aria-label="Goal Type" value={editType} onChange={e => setEditType(e.target.value)} style={{ flex: 1 }}>
-                                <option value="saving">💰 Saving Goal</option>
-                                <option value="wishlist">💭 Wishlist (no balance effect)</option>
+                        <div className="input-row">
+                            <select aria-label="Goal type" value={editType} onChange={e => setEditType(e.target.value)} style={{ flex: 1 }}>
+                                <option value="saving">Saving Goal</option>
+                                <option value="wishlist">Wishlist (no balance effect)</option>
                             </select>
                         </div>
                     )}
-                    <div className="flex-between mt-12">
-                        <button className="btn btn-ghost" type="button" onClick={() => setMode(null)}>Cancel</button>
-                        <button className="btn btn-primary" type="submit">Save Changes</button>
+                    <div className="flex-between mt-4">
+                        <button className="btn btn-ghost" type="button" onClick={() => setMode(null)}>
+                            <IconX /> Cancel
+                        </button>
+                        <button className="btn btn-primary" type="submit">
+                            <IconCheck /> Save
+                        </button>
                     </div>
                 </form>
             )}
 
             {mode === 'fund' && (
-                <form onSubmit={handleFund} className="input-row mt-12">
+                <form onSubmit={handleFund} className="input-row">
                     <input
                         type="number"
                         placeholder="Amount"
@@ -217,16 +275,41 @@ const GoalCard = memo(function GoalCard({ goal, compact = false }) {
                         max={Math.min(remaining, cash)}
                         autoFocus
                     />
-                    <button className="btn btn-sm btn-primary" type="submit">Add</button>
-                    <button className="btn btn-sm btn-ghost" type="button" aria-label="Close" onClick={() => setMode(null)}>✕</button>
+                    <button className="btn btn-sm btn-primary" type="submit">
+                        <IconPlus /> Add
+                    </button>
+                    <button
+                        className="btn btn-sm btn-ghost btn-icon"
+                        type="button"
+                        aria-label="Close"
+                        onClick={() => setMode(null)}
+                    >
+                        <IconX />
+                    </button>
                 </form>
             )}
 
             {mode === 'withdraw' && (
-                <form onSubmit={handleWithdraw} className="input-row mt-12">
-                    <input type="number" placeholder="Amount" value={withdrawAmt} onChange={e => setWithdrawAmt(e.target.value)} max={goal.saved} autoFocus />
-                    <button className="btn btn-sm btn-danger" type="submit">Back to Cash</button>
-                    <button className="btn btn-sm btn-ghost" type="button" aria-label="Close" onClick={() => setMode(null)}>✕</button>
+                <form onSubmit={handleWithdraw} className="input-row">
+                    <input
+                        type="number"
+                        placeholder="Amount"
+                        value={withdrawAmt}
+                        onChange={e => setWithdrawAmt(e.target.value)}
+                        max={goal.saved}
+                        autoFocus
+                    />
+                    <button className="btn btn-sm btn-danger" type="submit">
+                        <IconMinus /> Back to Cash
+                    </button>
+                    <button
+                        className="btn btn-sm btn-ghost btn-icon"
+                        type="button"
+                        aria-label="Close"
+                        onClick={() => setMode(null)}
+                    >
+                        <IconX />
+                    </button>
                 </form>
             )}
         </div>
